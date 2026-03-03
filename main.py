@@ -1,0 +1,7 @@
+# main.py
+import uvicorn
+from api.api import app
+
+if __name__ == "__main__":
+    # You can configure your host/port here for development
+    uvicorn.run(app, host="0.0.0.0", port=8000)

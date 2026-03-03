@@ -3,6 +3,7 @@ from typing import Callable
 from sqlalchemy import Column, ForeignKey, Integer, Boolean, DateTime, Interval, create_engine, func, JSON, Text, Uuid, Enum, ARRAY
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine import URL
+from sqlalchemy.orm import relationship
 from modules.constants import supabase_db_host, supabase_db_password
 
 func: Callable
@@ -29,12 +30,71 @@ class Product(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class Merchant(Base):
-    __tablename__ = 'merchants'
+class Review(Base):
+    __tablename__ = 'reviews'
     id = Column(Integer, primary_key=True)
-    name = Column(Text, nullable=False)
+    product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
+    content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+
+
+class Merchant(Base):
+    __tablename__ = 'merchants'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(Text, unique=True, nullable=False)
+    url = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationship to allow easy access: merchant.deals
+    deals = relationship("Deal", back_populates="merchant")
+    # Relationship: One merchant can have one or more programs
+    programs = relationship("MembershipProgram", back_populates="merchant")
+
+class MembershipProgram(Base):
+    __tablename__ = 'membership_programs'
+    id = Column(Integer, primary_key=True)
+    merchant_id = Column(Integer, ForeignKey('merchants.id'), nullable=False, index=True)
+    program_name = Column(Text)
+    
+    # Relationship: One program has many tiers
+    tiers = relationship("Tier", back_populates="program")
+    merchant = relationship("Merchant", back_populates="programs")
+    deals = relationship("Deal", back_populates="program")
+
+class Tier(Base):
+    __tablename__ = 'tiers'
+    id = Column(Integer, primary_key=True)
+    program_id = Column(Integer, ForeignKey('membership_programs.id'), nullable=False, index=True)
+    name = Column(Text)
+    rank = Column(Integer) # Helps the LLM understand hierarchy (e.g., 1, 2, 3)
+
+    program = relationship("MembershipProgram", back_populates="tiers")
+    deals = relationship("Deal", back_populates="tier")
+
+class Deal(Base):
+    __tablename__ = 'deals'
+    
+    id = Column(Integer, primary_key=True)
+    promo_code = Column(Text)
+    valid_from = Column(DateTime, default=func.now())
+    valid_until = Column(DateTime)
+    deal_details = Column(JSON) # The JSONB column for flexible deal logic
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    merchant_id = Column(Integer, ForeignKey('merchants.id'), nullable=False, index=True)
+    program_id = Column(Integer, ForeignKey('membership_programs.id'), nullable=True, index=True)
+    tier_id = Column(Integer, ForeignKey('tiers.id'), nullable=True, index=True)
+    
+    # Relationship to allow easy access: deal.merchant
+    merchant = relationship("Merchant", back_populates="deals")
+    program = relationship("MembershipProgram", back_populates="deals")
+    tier = relationship("Tier", back_populates="deals")
+
 
 DATABASE_URL = URL.create(
     drivername="postgresql",
