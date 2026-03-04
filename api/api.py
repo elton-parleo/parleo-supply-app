@@ -9,8 +9,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    #allow_origins=["https://parleo.com"],
-    allow_origins=["*"],
+    allow_origins=["https://parleo.com"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,7 +48,6 @@ def get_active_deals(db: Session = Depends(get_db)):
         models.Deal.valid_until >= now,
         models.Deal.valid_from <= now
     ).all()
-    print(f"Queried active deals at {now.isoformat()}, found {len(active_deals)} active deals.")
     
     return active_deals
 
