@@ -5,7 +5,7 @@ from datetime import datetime
 class MerchantSchema(BaseModel):
     id: int
     name: str
-    website: Optional[str] = None
+    url: Optional[str] = None
     
     # This is the magic line for Pydantic v2
     model_config = ConfigDict(from_attributes=True)
