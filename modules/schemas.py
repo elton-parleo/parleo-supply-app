@@ -18,8 +18,9 @@ class ProgramSchema(BaseModel):
 
 class DealSchema(BaseModel):
     id: int
-    promo_code: str
-    valid_from: datetime
+    title: str
+    promo_code: Optional[str] = None
+    valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     deal_details: dict[str, Any]
     

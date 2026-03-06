@@ -30,5 +30,6 @@ def run_etl(file_path, merchant_name, source):
             logger.error(f"ETL Pipeline failed: {e}")
 
 if __name__ == "__main__":
-    for i in range(0, 4):
-        run_etl(f'scraper/data/sephora_gift_p{i}.json', merchant_name='Sephora', source='scraper')
+    print("done")
+    #for i in range(0, 4):
+    #    run_etl(f'scraper/data/sephora_gift_p{i}.json', merchant_name='Sephora', source='scraper')
