@@ -64,7 +64,7 @@ def get_merchant_by_slug(merchant_slug: str, db: Session = Depends(get_db)):
     merchant = db.query(models.Merchant).options(
         joinedload(models.Merchant.deals),
         joinedload(models.Merchant.programs).joinedload(models.MembershipProgram.tiers)
-    ).filter(models.Merchant.name.ilike(merchant_slug)).first()
+    ).filter(models.Merchant.slug == merchant_slug).first()
     
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
