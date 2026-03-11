@@ -1,10 +1,11 @@
+import os
+
 from firecrawl import Firecrawl
 from modules.ChatClient import ChatClient
 from loguru import logger
 
 def scrape_and_extract_info(url: str):
-    firecrawl_api_key = "fc-ac545bfd7d2a4e9e9a042a49902dce19"
-    app = Firecrawl(api_key=firecrawl_api_key)
+    app = Firecrawl(api_key=os.getenv("FIRECRAWL_API_KEY"))
     
     data = app.scrape(
         url,
@@ -13,7 +14,6 @@ def scrape_and_extract_info(url: str):
         parsers=["pdf"],
         formats=["markdown"]
     )
-    logger.info(f"******** Scraped Data: {data}")
 
     return data.markdown if hasattr(data, 'markdown') else ""
 
