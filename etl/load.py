@@ -1,4 +1,7 @@
-from modules.models import Product, Merchant, Review
+import json
+
+from modules.models import Deal, MembershipProgram, Product, Merchant, Review, Tier
+from modules.schemas import ProgramSchema
 
 class DataLoader:
     def __init__(self, session):
@@ -42,3 +45,63 @@ class DataLoader:
         else:
             review = Review(product_id=product_id, content=content)
             self.session.add(review)
+
+
+    def upsert_membership_program(self, data: ProgramSchema, url: str=None):
+        """
+        Upserts a full membership program structure into the database.
+        Assumes data is already a validated Pydantic object.
+        """
+        # 1. Get or create Merchant
+        merchant = self.session.query(Merchant).filter_by(slug=data.merchant_slug).first()
+        if not merchant:
+            merchant = Merchant(name=data.merchant_name, slug=data.merchant_slug, url=url)
+            self.session.add(merchant)
+            self.session.flush()
+
+        # 2. Get or create Membership Program
+        program = self.session.query(MembershipProgram).filter_by(
+            merchant_id=merchant.id, program_name=data.program_name
+        ).first()
+        
+        if not program:
+            program = MembershipProgram(merchant_id=merchant.id, program_name=data.program_name)
+            self.session.add(program)
+            self.session.flush()
+
+        # 3. Handle Tiers
+        # Note: We clear old tiers if we want a fresh sync, or we can update based on rank
+        self.session.query(Tier).filter_by(program_id=program.id).delete()
+        
+        tier_map = {}
+        for t_data in data.tiers:
+            tier = Tier(program_id=program.id, name=t_data.name, rank=t_data.rank)
+            self.session.add(tier)
+            self.session.flush()
+            tier_map[t_data.name] = tier.id
+
+        # 4. Handle Deals
+        for d_data in data.deals:
+            # Parse the stringified JSON into a real dict
+            try:
+                details_dict = json.loads(d_data.deal_details)
+            except json.JSONDecodeError:
+                details_dict = {}
+
+            deal = Deal(
+                merchant_id=merchant.id,
+                program_id=program.id,
+                tier_id=tier_map.get(d_data.tier_name), # Assuming you link via tier name
+                title=d_data.title,
+                redemption_method=d_data.redemption_method,
+                promo_code=d_data.promo_code,
+                is_evergreen=d_data.is_evergreen,
+                is_stackable=d_data.is_stackable,
+                valid_from=d_data.valid_from,
+                valid_until=d_data.valid_until,
+                deal_type=d_data.deal_type,
+                deal_details=details_dict
+            )
+            self.session.add(deal)
+        
+        self.session.commit()

@@ -1,13 +1,6 @@
-"""
-chat_client.py
-
-Structured wrapper for OpenAI Chat Completions using model: gpt-5.1
-"""
-
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from openai import OpenAI
-
 
 class ChatClient:
     """Reusable chat completion client."""
@@ -21,17 +14,12 @@ class ChatClient:
         self.model = model
         self.system_prompt = system_prompt
 
-    # -------------------------
-    # Message Construction
-    # -------------------------
     def _build_messages(
         self,
         user_prompt: str,
         examples: Optional[List[Dict[str, str]]] = None,
     ) -> List[Dict[str, str]]:
-        messages = [
-            {"role": "system", "content": self.system_prompt}
-        ]
+        messages = [{"role": "system", "content": self.system_prompt}]
 
         if examples:
             for ex in examples:
@@ -43,31 +31,36 @@ class ChatClient:
         messages.append({"role": "user", "content": user_prompt})
         return messages
 
-    # -------------------------
-    # Generation
-    # -------------------------
     def generate(
         self,
         user_prompt: str,
         examples: Optional[List[Dict[str, str]]] = None,
+        schema: Optional[Dict[str, Any]] = None,
     ) -> str:
-
+        """
+        Generates a response. If a schema is provided, the model 
+        will output strictly valid JSON conforming to that schema.
+        """
         messages = self._build_messages(user_prompt, examples)
+        
+        # 1. Define the base text configuration
+        text_config = {"format": {"type": "text"}, "verbosity": "medium"}
 
-        response = self.client.responses.create(
-            model=self.model,
-            input=messages,
-            text={
-                "format": {
-                    "type": "text"
-                },
-                "verbosity": "medium"
-            },
-            reasoning={
-                "effort": "medium"
-            },
+        # 2. Inject schema correctly according to Responses API requirements
+        if schema:
+            text_config["format"] = {
+                "type": "json_schema",
+                "name": "data_extraction_schema", # name is a sibling of type here
+                "schema": schema,                 # schema key contains the definition
+                "strict": True
+            }
 
-        )
+        params = {
+            "model": self.model,
+            "input": messages,
+            "text": text_config,  # Nested here
+            "reasoning": {"effort": "medium"}
+        }
 
+        response = self.client.responses.create(**params)
         return response.output_text.strip()
-

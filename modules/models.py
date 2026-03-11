@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import relationship
 from modules.constants import supabase_db_host, supabase_db_password
+from modules.schemas import DealType, RedemptionType
 
 func: Callable
 Base = declarative_base()
@@ -78,18 +79,6 @@ class Tier(Base):
     program = relationship("MembershipProgram", back_populates="tiers")
     deals = relationship("Deal", back_populates="tier")
 
-class DealType(enum.Enum):
-    MULTIPLIER = "MULTIPLIER"       # e.g., 4x points
-    FLAT_REWARD = "FLAT_REWARD"     # e.g., 1 pt per $1
-    DISCOUNT = "DISCOUNT"           # e.g., 20% off
-    SHIPPING = "SHIPPING"           # e.g., Free 2-day shipping
-    GIFT = "GIFT"      # e.g., Free sample at checkout
-
-class RedemptionType(enum.Enum):
-    AUTOMATIC = "AUTOMATIC"      # No action needed (e.g., Sephora 1pt/$1)
-    PROMO_CODE = "PROMO_CODE"    # Requires a string at checkout (e.g., 'SAVE20')
-    ACTIVATED = "ACTIVATED"      # Must "clip" or "load" in-app (e.g., Starbucks Star Days)
-    
 class Deal(Base):
     __tablename__ = 'deals'
     

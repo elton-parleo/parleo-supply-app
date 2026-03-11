@@ -1,31 +1,59 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Any
 from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from enum import Enum
 
-class MerchantSchema(BaseModel):
+
+class DealType(str, Enum):
+    MULTIPLIER = "MULTIPLIER"
+    FLAT_REWARD = "FLAT_REWARD"
+    DISCOUNT = "DISCOUNT"
+    SHIPPING = "SHIPPING"
+    GIFT = "GIFT"
+
+class RedemptionType(str, Enum):
+    AUTOMATIC = "AUTOMATIC"
+    PROMO_CODE = "PROMO_CODE"
+    ACTIVATED = "ACTIVATED"
+
+class BaseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
+
+class MerchantSchema(BaseSchema):
     id: int
     name: str
+    slug: str
     url: Optional[str] = None
-    
-    # This is the magic line for Pydantic v2
-    model_config = ConfigDict(from_attributes=True)
 
-class ProgramSchema(BaseModel):
-    id: int
-    program_name: str
+class TierSchema(BaseSchema):
+    id: Optional[int] = Field(None, description="ID of the tier, only used for upsert logic to an existing tier. Optional.")
+    name: str
+    rank: int = Field(..., description="Hierarchy level, e.g., 1 for base, 2 for silver, etc.")
     
-    model_config = ConfigDict(from_attributes=True)
+class DealSchema(BaseSchema):
+    id: Optional[int] = Field(None, description="ID of the deal, only used for upsert logic to an existing deal. Optional.")
+    title: str = Field(..., description="The name or short description of the deal")
+    redemption_method: RedemptionType
+    valid_from: Optional[datetime] = Field(...)
+    valid_until: Optional[datetime] = Field(...)
+    promo_code: Optional[str] = Field(...)
+    is_evergreen: bool = Field(False, description="True if the deal is always active")
+    is_stackable: bool = Field(True, description="True if the deal can be combined with others")
+    deal_type: DealType = Field(...)
+    deal_details: str = Field(..., description="A JSON-formatted string containing the deal's specific logic (e.g., {'points': 4, 'threshold': 100}).")
+    tier_name: Optional[str] = Field(None, description="The name of the tier this deal belongs to, if applicable")
 
-class DealSchema(BaseModel):
-    id: int
-    title: str
-    promo_code: Optional[str] = None
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
-    deal_details: dict[str, Any]
-    
     # Tell Pydantic these are nested models, not raw objects
-    merchant: MerchantSchema
-    program: Optional[ProgramSchema] = None
-    
-    model_config = ConfigDict(from_attributes=True)
+    #merchant: MerchantSchema
+    #program: Optional[ProgramSchema] = None
+
+class ProgramSchema(BaseSchema):
+    merchant_id: Optional[int] = Field(None, description="ID of the merchant, only used for upsert logic to an existing merchant. Optional.")
+    merchant_name: str
+    merchant_slug: str
+    program_id: Optional[int] = Field(None, description="ID of the program, only used for upsert logic to an existing program. Optional.")
+    program_name: str
+    tiers: List[TierSchema] = Field(default_factory=list)
+    deals: List[DealSchema]
