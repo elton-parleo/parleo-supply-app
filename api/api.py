@@ -22,12 +22,12 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/api/deals", response_model=List[schemas.DealSchema])
+@app.get("/api/deals", response_model=List[schemas.DealJsonSchema])
 def get_deals(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
     deals = db.query(models.Deal).offset(skip).limit(limit).all()
     return deals
 
-@app.get("/api/deals/search", response_model=List[schemas.DealSchema])
+@app.get("/api/deals/search", response_model=List[schemas.DealJsonSchema])
 def search_deals(category: str = None, merchant_id: int = None, db: Session = Depends(get_db)):
     query = db.query(models.Deal)
     if merchant_id:
@@ -37,7 +37,7 @@ def search_deals(category: str = None, merchant_id: int = None, db: Session = De
         query = query.filter(models.Deal.deal_details['category'].astext == category)
     return query.all()
 
-@app.get("/api/deals/active", response_model=List[schemas.DealSchema])
+@app.get("/api/deals/active", response_model=List[schemas.DealJsonSchema])
 def get_active_deals(limit: int = 50, db: Session = Depends(get_db)):
     # Get current timestamp in ISO format
     now = datetime.now(timezone.utc)
@@ -51,7 +51,7 @@ def get_active_deals(limit: int = 50, db: Session = Depends(get_db)):
     
     return active_deals
 
-@app.get("/api/deals/{deal_id}", response_model=schemas.DealSchema)
+@app.get("/api/deals/{deal_id}", response_model=schemas.DealJsonSchema)
 def get_deal(deal_id: int, db: Session = Depends(get_db)):
     deal = db.query(models.Deal).filter(models.Deal.id == deal_id).first()
     if not deal:

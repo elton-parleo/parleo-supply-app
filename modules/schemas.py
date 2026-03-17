@@ -32,7 +32,7 @@ class TierSchema(BaseSchema):
     name: str
     rank: int = Field(..., description="Hierarchy level, e.g., 1 for base, 2 for silver, etc.")
     
-class DealSchema(BaseSchema):
+class DealBaseSchema(BaseSchema):
     id: Optional[int] = Field(None, description="ID of the deal, only used for upsert logic to an existing deal. Optional.")
     title: str = Field(..., description="The name or short description of the deal")
     redemption_method: RedemptionType
@@ -42,12 +42,17 @@ class DealSchema(BaseSchema):
     is_evergreen: bool = Field(False, description="True if the deal is always active")
     is_stackable: bool = Field(True, description="True if the deal can be combined with others")
     deal_type: DealType = Field(...)
-    deal_details: str = Field(..., description="A JSON-formatted string containing the deal's specific logic (e.g., {'points': 4, 'threshold': 100}).")
     tier_name: Optional[str] = Field(None, description="The name of the tier this deal belongs to, if applicable")
 
     # Tell Pydantic these are nested models, not raw objects
     #merchant: MerchantSchema
     #program: Optional[ProgramSchema] = None
+
+class DealStringSchema(DealBaseSchema):
+    deal_details: str = Field(..., description="A JSON-formatted string containing the deal's specific logic (e.g., {'points': 4, 'threshold': 100}).")
+
+class DealJsonSchema(DealBaseSchema):
+    deal_details: Any = Field(..., description="A JSON object containing the deal's specific logic (e.g., {'points': 4, 'threshold': 100}).")
 
 class ProgramSchema(BaseSchema):
     merchant_id: Optional[int] = Field(None, description="ID of the merchant, only used for upsert logic to an existing merchant. Optional.")
@@ -56,4 +61,4 @@ class ProgramSchema(BaseSchema):
     program_id: Optional[int] = Field(None, description="ID of the program, only used for upsert logic to an existing program. Optional.")
     program_name: str
     tiers: List[TierSchema] = Field(default_factory=list)
-    deals: List[DealSchema]
+    deals: List[DealStringSchema]
