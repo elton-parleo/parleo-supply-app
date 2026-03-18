@@ -1,7 +1,7 @@
 import json
 
 from modules.models import Deal, MembershipProgram, Product, Merchant, Review, Tier
-from modules.schemas import ProgramSchema
+from modules.schemas import MerchantProgramDealSchema
 
 class DataLoader:
     def __init__(self, session):
@@ -47,7 +47,7 @@ class DataLoader:
             self.session.add(review)
 
 
-    def upsert_membership_program(self, data: ProgramSchema, url: str=None):
+    def upsert_membership_program(self, data: MerchantProgramDealSchema, url: str=None):
         """
         Upserts a full membership program structure into the database.
         Assumes data is already a validated Pydantic object.

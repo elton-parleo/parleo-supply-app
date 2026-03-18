@@ -5,7 +5,7 @@ from loguru import logger
 
 from modules.scraper.scraper_firecrawl import extract_membership_program_info, make_schema_strict, scrape_and_extract_info
 from etl.load import DataLoader
-from modules.schemas import ProgramSchema
+from modules.schemas import MerchantProgramDealSchema
 
 
 if __name__ == "__main__":
@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
         if markdown_data:
             # Get the schema as a dictionary
-            program_schema = ProgramSchema.model_json_schema()
+            program_schema = MerchantProgramDealSchema.model_json_schema()
             strict_schema = make_schema_strict(program_schema)
             extracted_data = extract_membership_program_info(markdown_data, merchant_slug, strict_schema)
             logger.info(f"Results: {extracted_data}")
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             data_dict = json.loads(extracted_data)
 
             # Validate and map to Pydantic objects
-            validated_data = ProgramSchema(**data_dict)
+            validated_data = MerchantProgramDealSchema(**data_dict)
             with Session() as session:
                 loader = DataLoader(session)
                 loader.upsert_membership_program(validated_data, url=url)
