@@ -72,6 +72,8 @@ class DealStringSchema(DealBaseSchema):
 
 class DealJsonSchema(DealBaseSchema):
     deal_details: Any = Field(..., description="A JSON object containing the deal's specific logic (e.g., {'points': 4, 'threshold': 100}).")
+    tier: Optional[TierSchema] = None
+    tier_id: Optional[int] = Field(None, description="ID of the tier, only used for upsert logic to an existing tier. Optional.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -151,7 +153,8 @@ class MerchantDetailSchema(MerchantSchema):
                             "is_evergreen": True,
                             "is_stackable": False,
                             "deal_type": "PERCENTAGE",
-                            "deal_details": {"percent": 10}
+                            "deal_details": {"percent": 10},
+                            "tier_name": "Insider"
                         }
                     ],
                     "programs": [

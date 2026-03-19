@@ -81,9 +81,10 @@ def get_deal(deal_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Deal not found")
     return deal
 
-@app.get("/api/merchants/{merchant_slug}",
+@app.get("/api/merchants/{merchant_slug}", response_model=schemas.MerchantDetailSchema,
          summary="Retrieves a specific merchant", 
          description="Retrieves a specific merchant by its slug, including all associated deals and programs. Use this endpoint for detailed information about a single merchant, not for search or listing.",
+         responses=create_response_example(schemas.MerchantDetailSchema.model_config["json_schema_extra"]["examples"][0])
          )
 def get_merchant_by_slug(merchant_slug: str, db: Session = Depends(get_db)):
     # We use joinedload to eagerly fetch deals, programs, and tiers in one query
