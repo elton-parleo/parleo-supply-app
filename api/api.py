@@ -10,7 +10,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -54,7 +54,9 @@ def search_deals(category: str = None, merchant_id: int = None, db: Session = De
         query = query.filter(models.Deal.deal_details['category'].astext == category)
     return query.all()
 
-@app.get("/api/deals/active", response_model=List[schemas.DealJsonSchema], 
+@app.api_route("/api/deals/active", 
+         methods=["GET", "HEAD"],
+         response_model=List[schemas.DealJsonSchema], 
          summary="Retrieves a list of active deals and promotions", 
          description="Returns a list of currently active deals across merchants. A deal is considered active if the current date is between valid_from and valid_until, or if it is marked as evergreen.",
          responses=create_response_example(schemas.DealJsonSchema.model_config["json_schema_extra"]["examples"]))
