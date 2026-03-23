@@ -63,6 +63,7 @@ class MembershipProgram(Base):
     id = Column(Integer, primary_key=True)
     merchant_id = Column(Integer, ForeignKey('merchants.id'), nullable=False, index=True)
     program_name = Column(Text)
+    program_description = Column(Text)
     
     # Relationship: One program has many tiers
     tiers = relationship("Tier", back_populates="program")

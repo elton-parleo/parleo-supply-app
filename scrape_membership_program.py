@@ -9,7 +9,8 @@ from modules.schemas import MerchantProgramDealSchema
 
 
 if __name__ == "__main__":
-    merchants = {
+    update_program = True
+    """merchants = {
         "lululemon": "https://shop.lululemon.com/membership",
         "neiman-marcus": "https://www.neimanmarcus.com/my/Loyalty",
         "saks-fifth-avenue": "https://www.saksfifthavenue.com/saksfirst",
@@ -25,6 +26,9 @@ if __name__ == "__main__":
         "madewell": "https://www.madewell.com/insider",
         "west-elm": "https://www.westelm.com/pages/the-key-rewards/",
         "crate---barrel": "https://www.crateandbarrel.com/rewards"
+    }"""
+    merchants = {
+        "rei": "https://www.rei.com/rei-membership",
     }
     
     for merchant_slug, url in merchants.items():
@@ -36,7 +40,13 @@ if __name__ == "__main__":
             # Get the schema as a dictionary
             program_schema = MerchantProgramDealSchema.model_json_schema()
             strict_schema = make_schema_strict(program_schema)
-            extracted_data = extract_membership_program_info(markdown_data, merchant_slug, strict_schema)
+
+            existing_program = None
+            if update_program:
+                with Session() as session:
+                    loader = DataLoader(session)
+                    existing_program = loader.get_membership_program(merchant_slug)    
+            extracted_data = extract_membership_program_info(markdown_data, merchant_slug, strict_schema, existing_program)
             logger.info(f"Results: {extracted_data}")
 
             data_dict = json.loads(extracted_data)
@@ -44,6 +54,5 @@ if __name__ == "__main__":
             # Validate and map to Pydantic objects
             validated_data = MerchantProgramDealSchema(**data_dict)
             with Session() as session:
-                loader = DataLoader(session)
                 loader.upsert_membership_program(validated_data, url=url)
 

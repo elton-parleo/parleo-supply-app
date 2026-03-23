@@ -17,7 +17,7 @@ def scrape_and_extract_info(url: str):
 
     return data.markdown if hasattr(data, 'markdown') else ""
 
-def extract_membership_program_info(markdown_data: str, company_name: str, program_schema: dict):
+def extract_membership_program_info(markdown_data: str, company_name: str, program_schema: dict, existing_program: dict = None):
     system_prompt = "You crawl the web and extract information."
 
     deal_table = f"""
@@ -54,6 +54,8 @@ def extract_membership_program_info(markdown_data: str, company_name: str, progr
 
     client = ChatClient(system_prompt=system_prompt)
     user_prompt = f"You are given the following markdown data of the details and perk of {company_name} membership program webpage: {markdown_data}. Please codify it into a structured json to be stored in the Deal table. {deal_table}. "
+    if existing_program:
+        user_prompt += f"Here is the existing structured data we have for {company_name}: {existing_program}. If the markdown data contains updates to the existing program, please update the structured data accordingly. If there are no changes, return the existing structured data as is. Only return None for fields that are completely missing from the markdown data or existing program."
 
     logger.info(f"Generating structured deal info for {company_name}...")
     result = client.generate(
