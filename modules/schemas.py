@@ -121,7 +121,7 @@ class MerchantProgramDealSchema(BaseSchema):
     merchant_slug: str
     program_id: Optional[int] = Field(None, description="ID of the program, only used for upsert logic to an existing program. Optional.")
     program_name: str
-    program_description: Optional[str] = Field(None, description="A brief description of the membership program.")
+    program_description: str = Field(..., description="A brief description of the membership program.")
     tiers: List[TierSchema] = Field(default_factory=list)
     deals: List[DealStringSchema]
 

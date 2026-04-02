@@ -51,7 +51,9 @@ class DataLoader:
     def get_membership_program(self, merchant_slug) -> MerchantProgramDealSchema:
         merchant = self.session.query(Merchant).filter_by(slug=merchant_slug).first()
         if not merchant:
-            return None
+            merchant = Merchant(slug=merchant_slug)
+            self.session.add(merchant)
+            self.session.flush()
         
         program = self.session.query(MembershipProgram).filter_by(
             merchant_id=merchant.id
@@ -84,6 +86,7 @@ class DataLoader:
             merchant.updated_at = func.now() # Update timestamp if merchant already exists
         else:
             merchant = Merchant(name=data.merchant_name, slug=data.merchant_slug, url=url)
+            merchant.updated_at = func.now()
             self.session.add(merchant)
             self.session.flush()
 

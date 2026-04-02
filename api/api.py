@@ -4,6 +4,9 @@ from typing import List
 from datetime import datetime, timezone
 from modules import models, schemas, database
 from fastapi.middleware.cors import CORSMiddleware
+from deal_engine.schemas import TrueCostRequest, TrueCostResponse
+from deal_engine.orchestrator import DealOrchestrator
+from deal_engine.calculator import TrueCostCalculator
 
 app = FastAPI()
 
@@ -112,7 +115,75 @@ def get_merchant_by_slug(merchant_slug: str, db: Session = Depends(get_db)):
         
     return merchant
 
-@app.get("/api/merchants", response_model=List[schemas.MerchantSchema], 
+@app.post(
+    "/api/deals/true-cost",
+    response_model=TrueCostResponse,
+    summary="Calculate the true cost of a cart after applying all eligible deals",
+    description=(
+        "Given a merchant and product price, finds all active deals for that merchant, "
+        "applies the best combination of promo and loyalty deals, and returns the "
+        "true cost after savings. Pass user_tier_name to include loyalty perks. "
+        "Pass product_category to enable category-specific deal matching.\n\n"
+        "**Example request:**\n"
+        "```json\n"
+        '{"merchant_slug": "sephora", "product_price": 120.00, "user_tier_name": "VIB", '
+        '"user_points_balance": 500, "product_category": "skincare"}\n'
+        "```"
+    ),
+    responses=create_response_example({
+        "merchant_slug": "sephora",
+        "product_price": 120.00,
+        "true_cost": 98.00,
+        "total_savings": 22.00,
+        "total_points_earned": 490,
+        "confidence": 1.0,
+        "user_tier_name": "VIB",
+        "applied_deals": [
+            {
+                "deal_id": 2,
+                "deal_title": "$10 off orders over $50",
+                "deal_type": "FLAT_REWARD",
+                "redemption_method": "PROMO_CODE",
+                "saving_amount": 10.00,
+                "saving_pct": 0.0833,
+                "points_earned": None,
+                "is_stackable": False,
+                "applied": True,
+                "not_applied_reason": None,
+            },
+            {
+                "deal_id": 5,
+                "deal_title": "4x points on all purchases",
+                "deal_type": "MULTIPLIER",
+                "redemption_method": "AUTOMATIC",
+                "saving_amount": 0.0,
+                "saving_pct": 0.0,
+                "points_earned": 480,
+                "is_stackable": True,
+                "applied": True,
+                "not_applied_reason": None,
+            },
+        ],
+        "available_deals": [],
+    }),
+)
+def calculate_true_cost(
+    request: TrueCostRequest,
+    db: Session = Depends(get_db),
+):
+    orchestrator = DealOrchestrator()
+    calculator = TrueCostCalculator()
+
+    orch_result = orchestrator.run(request, db)
+
+    if orch_result["merchant"] is None:
+        raise HTTPException(status_code=404, detail=f"Merchant '{request.merchant_slug}' not found")
+
+    response = calculator.calculate(request, orch_result["engine_results"])
+    return response
+
+
+@app.get("/api/merchants", response_model=List[schemas.MerchantSchema],
          summary="Retrieves a list of all merchants", 
          description="Returns a list of all merchants. Use this endpoint for bulk retrieval or indexing, not for search.",
          responses=create_response_example([schemas.MerchantSchema.model_config["json_schema_extra"]["examples"]]))
