@@ -59,7 +59,7 @@ def db():
       - 1 Merchant  (slug="test-merchant")
       - 1 MembershipProgram
       - 3 Tiers     (Bronze rank=1, Silver rank=2, Gold rank=3)
-      - 4 Deals     (see inline comments)
+      - 11 Deals    (see inline comments)
     """
     session = _TestSession()
 
@@ -86,7 +86,7 @@ def db():
         title="10% off everything",
         deal_type=DealType.DISCOUNT,
         redemption_method=RedemptionType.AUTOMATIC,
-        deal_details={"percent": 10},
+        deal_details={"discount_percent": 10},
         is_stackable=True,
         is_evergreen=True,
         merchant_id=merchant.id,
@@ -97,7 +97,7 @@ def db():
         deal_type=DealType.FLAT_REWARD,
         redemption_method=RedemptionType.PROMO_CODE,
         promo_code="SAVE15",
-        deal_details={"discount_amount": 15, "minimum_order_value": 50},
+        deal_details={"discount_amount": 15, "spend_min": 50},
         is_stackable=False,
         is_evergreen=True,
         merchant_id=merchant.id,
@@ -107,7 +107,7 @@ def db():
         title="3x points for Gold members",
         deal_type=DealType.MULTIPLIER,
         redemption_method=RedemptionType.AUTOMATIC,
-        deal_details={"points_multiplier": 3, "applicable_categories": ["skincare"]},
+        deal_details={"earn_multiplier": 3, "earn_base_value": 1, "spend_per_increment": 1, "scope_categories": ["skincare"]},
         is_stackable=True,
         is_evergreen=True,
         merchant_id=merchant.id,
@@ -119,14 +119,96 @@ def db():
         title="20% off for Gold members",
         deal_type=DealType.DISCOUNT,
         redemption_method=RedemptionType.AUTOMATIC,
-        deal_details={"percent": 20, "applicable_categories": ["skincare"]},
+        deal_details={"discount_percent": 20, "scope_categories": ["skincare"]},
         is_stackable=True,
         is_evergreen=True,
         merchant_id=merchant.id,
         program_id=program.id,
         tier_id=gold.id,
     )
-    session.add_all([deal1, deal2, deal3, deal4])
+    # Deal 5 — Silver loyalty DISCOUNT 15%, evergreen, stackable (no category restriction)
+    deal5 = Deal(
+        title="15% off for Silver members",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 15},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+        tier_id=silver.id,
+    )
+    # Deal 6 — program-wide FLAT_REWARD 500pts (earn_type=points), spend_min=50, evergreen
+    deal6 = Deal(
+        title="500 bonus points for members",
+        deal_type=DealType.FLAT_REWARD,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"earn_type": "points", "earn_value": 500, "spend_min": 50},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    # Deal 7 — program-wide FLAT_REWARD 500pts, earn_cap=300 per_transaction, evergreen
+    deal7 = Deal(
+        title="500 bonus points capped at 300",
+        deal_type=DealType.FLAT_REWARD,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={
+            "earn_type": "points",
+            "earn_value": 500,
+            "earn_cap": 300,
+            "earn_cap_period": "per_transaction",
+        },
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    # Deal 8 — program-wide FLAT_REWARD $10 fixed_currency discount, evergreen
+    deal8 = Deal(
+        title="$10 fixed currency reward for members",
+        deal_type=DealType.FLAT_REWARD,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"earn_type": "fixed_currency", "discount_amount": 10},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    # Deal 9 — Gold loyalty MULTIPLIER 3x, spend_per_increment=3, evergreen
+    deal9 = Deal(
+        title="3x points per $3 for Gold members",
+        deal_type=DealType.MULTIPLIER,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"earn_multiplier": 3, "earn_base_value": 1, "spend_per_increment": 3},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+        tier_id=gold.id,
+    )
+    # Deal 10 — public DISCOUNT 20% capped at $15, evergreen, stackable (promo engine)
+    deal10 = Deal(
+        title="20% off capped at $15",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 20, "discount_amount_max": 15},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+    )
+    # Deal 11 — public DISCOUNT 10% in-store only, evergreen (filtered by scope_channels)
+    deal11 = Deal(
+        title="10% off in-store only",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10, "scope_channels": ["in_store"]},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+    )
+    session.add_all([deal1, deal2, deal3, deal4, deal5, deal6, deal7, deal8, deal9, deal10, deal11])
     session.commit()
 
     yield session
@@ -151,6 +233,13 @@ def seeded(db):
         "deal2": deal_map["$15 off orders over $50"],
         "deal3": deal_map["3x points for Gold members"],
         "deal4": deal_map["20% off for Gold members"],
+        "deal5": deal_map["15% off for Silver members"],
+        "deal6": deal_map["500 bonus points for members"],
+        "deal7": deal_map["500 bonus points capped at 300"],
+        "deal8": deal_map["$10 fixed currency reward for members"],
+        "deal9": deal_map["3x points per $3 for Gold members"],
+        "deal10": deal_map["20% off capped at $15"],
+        "deal11": deal_map["10% off in-store only"],
     }
 
 

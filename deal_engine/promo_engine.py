@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def _category_excluded(deal_details: dict, product_category: str | None) -> bool:
     """Return True when the deal is category-restricted and the product doesn't qualify."""
-    applicable_categories = deal_details.get("applicable_categories", [])
+    applicable_categories = deal_details.get("scope_categories", [])
     if not applicable_categories:
         return False  # no restriction — always eligible
     if not product_category:
@@ -46,11 +46,16 @@ class PromoEngine(BaseEngine):
 
                 details = deal.deal_details or {}
 
-                min_order = details.get("minimum_order_value")
+                min_order = details.get("spend_min")
                 if min_order is not None and request.product_price < min_order:
                     continue
 
                 if _category_excluded(details, request.product_category):
+                    continue
+
+                scope_channels = details.get("scope_channels", [])
+                if scope_channels and "online" not in [c.lower() for c in scope_channels]:
+                    # TODO v2: accept channel as input on TrueCostRequest
                     continue
 
                 eligible.append(deal)
@@ -63,9 +68,28 @@ class PromoEngine(BaseEngine):
                     product_price = request.product_price
 
                     if deal.deal_type == DealType.DISCOUNT:
-                        saving_pct = details["percent"] / 100
-                        saving_amount = min(product_price * saving_pct, product_price)
-                    else:  # FLAT_REWARD
+                        discount_type = details.get("discount_type")
+                        discount_percent = details.get("discount_percent", 0)
+                        discount_amount = details.get("discount_amount", 0)
+                        discount_amount_max = details.get("discount_amount_max")
+
+                        if discount_type == "amount_off" or (
+                            discount_amount > 0 and discount_percent == 0
+                        ):
+                            saving_amount = float(discount_amount)
+                            saving_pct = saving_amount / product_price if product_price else 0.0
+                        else:  # percent_off (default)
+                            saving_amount = product_price * discount_percent / 100
+                            saving_pct = discount_percent / 100
+
+                        if discount_amount_max is not None:
+                            saving_amount = min(saving_amount, float(discount_amount_max))
+                            saving_pct = saving_amount / product_price if product_price else 0.0
+
+                        saving_amount = min(saving_amount, product_price)
+                    else:  # FLAT_REWARD — flat dollar discount (discount_amount)
+                        # Points earning for FLAT_REWARD deals is handled exclusively by
+                        # LoyaltyEngine; PromoEngine always returns points_earned=None.
                         saving_amount = min(float(details.get("discount_amount", 0)), product_price)
                         saving_pct = saving_amount / product_price if product_price else 0.0
 

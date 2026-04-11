@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from deal_engine.schemas import TrueCostRequest, TrueCostResponse
 from deal_engine.orchestrator import DealOrchestrator
 from deal_engine.calculator import TrueCostCalculator
+from product_resolver.schemas import ProductResolverRequest, ProductTrueCostResponse
+from product_resolver.resolver import ProductResolver
 
 app = FastAPI()
 
@@ -182,6 +184,56 @@ def calculate_true_cost(
     response = calculator.calculate(request, orch_result["engine_results"])
     return response
 
+
+
+@app.post(
+    "/api/product-true-cost",
+    response_model=ProductTrueCostResponse,
+    summary="Get the true cost of a product from its URL",
+    description=(
+        "Accepts a product URL, crawls the page, extracts product details "
+        "(merchant, name, category, price) using an LLM, then calculates "
+        "the true cost after applying all eligible promo and loyalty deals. "
+        "The merchant is matched against the database — returns 422 if the "
+        "merchant cannot be identified or is not supported. "
+        "Optionally pass user_tier_name to include membership and loyalty deals "
+        "in the true cost calculation."
+    ),
+    responses=create_response_example({
+        "product_url": "https://www.sephora.com/product/rare-beauty-lip-souffle-P123456",
+        "user_tier_name": "VIB",
+        "product_name": "Rare Beauty Soft Pinch Tinted Lip Oil",
+        "product_sku": "P123456",
+        "product_category": "lip",
+        "merchant_slug": "sephora",
+        "true_cost_result": {
+            "merchant_slug": "sephora",
+            "product_price": 22.00,
+            "true_cost": 19.80,
+            "total_savings": 2.20,
+            "total_points_earned": 66,
+            "confidence": 1.0,
+            "user_tier_name": None,
+            "applied_deals": [],
+            "available_deals": [],
+        },
+    }),
+)
+def get_product_true_cost(
+    request: ProductResolverRequest,
+    db: Session = Depends(get_db),
+):
+    resolver = ProductResolver()
+    try:
+        return resolver.resolve(
+            str(request.product_url),
+            db,
+            user_tier_name=request.user_tier_name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.get("/api/merchants", response_model=List[schemas.MerchantSchema],
          summary="Retrieves a list of all merchants", 
