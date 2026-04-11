@@ -1,6 +1,7 @@
 beautifulsoup4==4.14.3
 python-dotenv==1.2.1
 fastapi==0.135.1
+firecrawl-py==4.22.1
 loguru==0.7.3
 openai==2.24.0
 psycopg2-binary==2.9.11
