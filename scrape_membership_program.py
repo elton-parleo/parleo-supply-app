@@ -13,7 +13,7 @@ if __name__ == "__main__":
     # get all merchants 
     # contruct json {slug: url} from merchant objects
     
-    """merchants = {
+    """merchants = 
         {
             "glossier": "https://www.glossier.com/pages/glossier-membership-program",
             "jcrew": "https://www.jcrew.com/company/rewards?intcmp=homepage_toppromobanner2_10__rewards_&om_i=builderNewHP_p1",
