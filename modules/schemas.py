@@ -90,8 +90,8 @@ class DealJsonSchema(DealBaseSchema):
                     "deal_type": "MULTIPLIER",
                     "tier_name": "Gold",
                     "deal_details": {
-                        "points_multiplier": 4,
-                        "applicable_categories": ["makeup", "skincare"]
+                        "earn_multiplier": 4,
+                        "scope_categories": ["makeup", "skincare"]
                     }
                 },
                 {
@@ -107,7 +107,7 @@ class DealJsonSchema(DealBaseSchema):
                     "tier_name": None,
                     "deal_details": {
                         "discount_amount": 10,
-                        "minimum_order_value": 50
+                        "spend_min": 50
                     }
                 }
             ]
@@ -155,7 +155,7 @@ class MerchantDetailSchema(MerchantSchema):
                             "is_evergreen": True,
                             "is_stackable": False,
                             "deal_type": "PERCENTAGE",
-                            "deal_details": {"percent": 10},
+                            "deal_details": {"discount_percent": 10},
                             "tier_name": "Insider"
                         }
                     ],

@@ -87,9 +87,7 @@ class TrueCostCalculator:
 
         # STEP 4 — Compute total_points_earned
         total_points_earned = sum(d.points_earned for d in applied if d.points_earned)
-        base_points = floor(true_cost)  # 1 pt per $1 on amount actually paid
-        total_points_earned += base_points
-
+        
         # STEP 5 — Confidence score
         confidence = 1.0
         for engine_name, results in engine_results.items():

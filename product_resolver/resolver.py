@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from modules.models import Merchant
@@ -17,7 +19,12 @@ class ProductResolver:
         self.orchestrator = DealOrchestrator()
         self.calculator = TrueCostCalculator()
 
-    def resolve(self, product_url: str, db: Session) -> ProductTrueCostResponse:
+    def resolve(
+        self,
+        product_url: str,
+        db: Session,
+        user_tier_name: Optional[str] = None,
+    ) -> ProductTrueCostResponse:
         # STEP A — Load all known merchant slugs from the DB
         known_merchant_slugs = [
             row.slug
@@ -28,6 +35,7 @@ class ProductResolver:
 
         # STEP B — Scrape the page (ValueError bubbles up to the endpoint)
         page_content = self.scraper.scrape(product_url)
+        print('111111: ', page_content)
 
         # STEP C — Extract product details (ValueError bubbles up)
         extracted = self.extractor.extract(
@@ -35,6 +43,8 @@ class ProductResolver:
             product_url,
             known_merchant_slugs,
         )
+        print('222222: ', extracted)
+
 
         # STEP D — Validate that the LLM returned a recognised merchant slug
         if extracted.merchant_slug is None:
@@ -54,7 +64,7 @@ class ProductResolver:
             merchant_slug=extracted.merchant_slug,
             product_price=extracted.product_price,
             product_category=extracted.product_category,
-            user_tier_name=None,
+            user_tier_name=user_tier_name,
             user_points_balance=0,
         )
         orch_result = self.orchestrator.run(request, db)

@@ -52,7 +52,7 @@ Rules:
 
         user_prompt = (
             f"Product URL: {product_url}\n\n"
-            f"Page content:\n{page_content[:12000]}"
+            f"Page content:\n{page_content}"
         )
 
         response_text = client.generate(user_prompt=user_prompt)
@@ -71,5 +71,5 @@ Rules:
             raise ValueError(
                 f"LLM response missing required field 'merchant_slug': {parsed}"
             )
-
+        
         return ExtractedProduct(**parsed)

@@ -4,6 +4,7 @@ Product resolver test suite.
 Tests 1-6  — unit/integration tests for ProductResolver.resolve()
               using the real SQLite DB from conftest.py (seeded with test-merchant).
 Test 7-8   — endpoint tests via TestClient with ProductResolver.resolve() mocked.
+Test 9     — confirms user_tier_name is passed through to TrueCostRequest.
 """
 
 import pytest
@@ -226,3 +227,33 @@ def test_endpoint_unmatched_merchant_returns_422(client):
 
     assert response.status_code == 422
     assert "Could not match the product page" in response.json()["detail"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# TEST 9 — user_tier_name is passed through to TrueCostRequest unmodified
+# ─────────────────────────────────────────────────────────────────────────────────
+
+def test_user_tier_name_passed_to_engine(db):
+    from deal_engine.orchestrator import DealOrchestrator
+    from modules.models import Merchant
+
+    extracted = _make_extracted(merchant_slug="test-merchant", product_price=100.0)
+    captured_requests = []
+
+    def fake_run(req, session):
+        captured_requests.append(req)
+        merchant = session.query(Merchant).filter_by(slug="test-merchant").first()
+        return {"merchant": merchant, "active_deals": [], "engine_results": {"promo": [], "loyalty": []}}
+
+    with (
+        patch.object(ProductScraper, "scrape", return_value="fake page content"),
+        patch.object(ProductExtractor, "extract", return_value=extracted),
+        patch.object(DealOrchestrator, "run", side_effect=fake_run),
+    ):
+        resolver = ProductResolver()
+        resolver.resolve("https://test.com/product", db, user_tier_name="Gold")
+
+    assert len(captured_requests) == 1
+    assert captured_requests[0].user_tier_name == "Gold", (
+        "user_tier_name='Gold' must be present on the TrueCostRequest passed to the deal engine"
+    )

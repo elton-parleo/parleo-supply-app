@@ -8,6 +8,7 @@ class ProductResolverRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     product_url: HttpUrl
+    user_tier_name: Optional[str] = None   # e.g. "Gold", "VIB", "Insider"
 
 
 class ExtractedProduct(BaseModel):

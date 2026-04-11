@@ -195,10 +195,13 @@ def calculate_true_cost(
         "(merchant, name, category, price) using an LLM, then calculates "
         "the true cost after applying all eligible promo and loyalty deals. "
         "The merchant is matched against the database — returns 422 if the "
-        "merchant cannot be identified or is not supported."
+        "merchant cannot be identified or is not supported. "
+        "Optionally pass user_tier_name to include membership and loyalty deals "
+        "in the true cost calculation."
     ),
     responses=create_response_example({
         "product_url": "https://www.sephora.com/product/rare-beauty-lip-souffle-P123456",
+        "user_tier_name": "VIB",
         "product_name": "Rare Beauty Soft Pinch Tinted Lip Oil",
         "product_sku": "P123456",
         "product_category": "lip",
@@ -222,7 +225,11 @@ def get_product_true_cost(
 ):
     resolver = ProductResolver()
     try:
-        return resolver.resolve(str(request.product_url), db)
+        return resolver.resolve(
+            str(request.product_url),
+            db,
+            user_tier_name=request.user_tier_name,
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

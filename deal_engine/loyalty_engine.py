@@ -17,7 +17,7 @@ _Membership = Dict  # {"tier": Optional[Tier], "rank": Optional[int]}
 
 def _category_excluded(deal_details: dict, product_category: str | None) -> bool:
     """Return True when the deal is category-restricted and the product doesn't qualify."""
-    applicable_categories = deal_details.get("applicable_categories", [])
+    applicable_categories = deal_details.get("scope_categories", [])
     if not applicable_categories:
         return False  # no restriction — always eligible
     if not product_category:
@@ -88,7 +88,7 @@ class LoyaltyEngine(BaseEngine):
                         # Program has no tiers, so tier-specific deals don't apply
                         continue
                     deal_tier_rank = deal.tier.rank if deal.tier else None
-                    if deal_tier_rank is None or membership["rank"] < deal_tier_rank:
+                    if deal_tier_rank is None or membership["rank"] != deal_tier_rank:
                         continue
 
                 if deal.deal_type not in (DealType.MULTIPLIER, DealType.DISCOUNT, DealType.FLAT_REWARD):
@@ -96,6 +96,11 @@ class LoyaltyEngine(BaseEngine):
 
                 details = deal.deal_details or {}
                 if _category_excluded(details, request.product_category):
+                    continue
+
+                scope_channels = details.get("scope_channels", [])
+                if scope_channels and "online" not in [c.lower() for c in scope_channels]:
+                    # TODO v2: accept channel as input on TrueCostRequest
                     continue
 
                 eligible.append(deal)
@@ -111,21 +116,66 @@ class LoyaltyEngine(BaseEngine):
                     points_earned: Optional[int] = None
 
                     if deal.deal_type == DealType.MULTIPLIER:
-                        base_points = floor(product_price)
-                        multiplier = details.get("points_multiplier", 1)
-                        # TODO (v2): filter base_points to applicable_categories only;
+                        spend_min = details.get("spend_min")
+                        if spend_min and product_price < spend_min:
+                            continue
+                        earn_base_value = details.get("earn_base_value", 1)
+                        spend_per_increment = details.get("spend_per_increment", 1)
+                        earn_multiplier = details.get("earn_multiplier", 1)
+                        # TODO (v2): filter base_points to scope_categories only;
                         # for MVP the multiplier is applied to the full product_price.
-                        points_earned = floor(base_points * multiplier)
+                        increments = floor(product_price / spend_per_increment)
+                        base_points = increments * earn_base_value
+                        points_earned = self._apply_earn_cap(
+                            floor(base_points * earn_multiplier), details
+                        )
                         saving_amount = 0.0
                         saving_pct = 0.0
 
                     elif deal.deal_type == DealType.DISCOUNT:
-                        saving_pct = details["percent"] / 100
-                        saving_amount = min(product_price * saving_pct, product_price)
+                        discount_type = details.get("discount_type")
+                        discount_percent = details.get("discount_percent", 0)
+                        discount_amount = details.get("discount_amount", 0)
+                        discount_amount_max = details.get("discount_amount_max")
+
+                        if discount_type == "amount_off" or (
+                            discount_amount > 0 and discount_percent == 0
+                        ):
+                            saving_amount = float(discount_amount)
+                            saving_pct = saving_amount / product_price if product_price else 0.0
+                        else:  # percent_off (default)
+                            saving_amount = product_price * discount_percent / 100
+                            saving_pct = discount_percent / 100
+
+                        if discount_amount_max is not None:
+                            saving_amount = min(saving_amount, float(discount_amount_max))
+                            saving_pct = saving_amount / product_price if product_price else 0.0
+
+                        saving_amount = min(saving_amount, product_price)
 
                     elif deal.deal_type == DealType.FLAT_REWARD:
-                        saving_amount = min(float(details.get("discount_amount", 0)), product_price)
-                        saving_pct = saving_amount / product_price if product_price else 0.0
+                        spend_min = details.get("spend_min")
+                        if spend_min and product_price < spend_min:
+                            continue
+                        earn_type = details.get("earn_type")
+                        if earn_type in ("points", "stamps", "coins", "stars"):
+                            earn_value = details.get("earn_value", 0)
+                            spend_per_increment = details.get("spend_per_increment")
+                            if spend_per_increment:
+                                # Rate-based: earn earn_value points per spend_per_increment dollars
+                                increments = floor(product_price / spend_per_increment)
+                                raw_points = floor(increments * earn_value)
+                            else:
+                                # Flat bonus: earn_value is a fixed point award regardless of spend
+                                raw_points = int(earn_value)
+                            points_earned = self._apply_earn_cap(raw_points, details)
+                            saving_amount = 0.0
+                            saving_pct = 0.0
+                        else:  # fixed_currency, percent_back, or earn_type absent — cash/discount
+                            saving_amount = min(
+                                float(details.get("discount_amount", 0)), product_price
+                            )
+                            saving_pct = saving_amount / product_price if product_price else 0.0
 
                     results.append(
                         AppliedDealResult(
@@ -148,6 +198,31 @@ class LoyaltyEngine(BaseEngine):
         except Exception as exc:
             logger.warning("LoyaltyEngine.evaluate failed: %s", exc)
             return []
+
+    def _apply_earn_cap(self, points: int, deal_details: dict) -> int:
+        """
+        Cap points_earned by earn_cap if present.
+        For MVP, only enforce per_transaction cap (most common case).
+        All other earn_cap_period values are noted but not enforced
+        (cross-transaction tracking is a v2 feature).
+        """
+        earn_cap = deal_details.get("earn_cap")
+        earn_cap_period = deal_details.get("earn_cap_period")
+
+        if earn_cap is None:
+            return points
+
+        if earn_cap_period == "per_transaction" or earn_cap_period is None:
+            return min(points, int(earn_cap))
+
+        # TODO v2: enforce daily/monthly/annual caps via user transaction history
+        # For now return uncapped with a warning log
+        logger.debug(
+            "earn_cap_period=%r is not enforced at MVP; returning uncapped points=%d",
+            earn_cap_period,
+            points,
+        )
+        return points
 
     def _resolve_merchant_id(
         self,
