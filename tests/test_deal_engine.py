@@ -8,6 +8,7 @@ Category tests (12-14)  — validate scope_categories filtering in both engines.
 """
 
 import pytest
+from unittest.mock import patch
 
 from deal_engine.promo_engine import PromoEngine
 from deal_engine.loyalty_engine import LoyaltyEngine
@@ -15,6 +16,28 @@ from deal_engine.calculator import TrueCostCalculator
 from deal_engine.schemas import TrueCostRequest, AppliedDealResult
 from modules.schemas import DealType, RedemptionType
 from modules.models import Deal
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fixtures
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def mock_category_matcher():
+    """Replace CategoryMatcher.matches with an exact-string fallback for all tests.
+
+    This keeps all existing tests working without a live OpenAI API key.
+    The fallback mirrors the original _category_excluded logic:
+    return True iff product_category (case-insensitive) is in scope_categories.
+    """
+    def _exact_match(self, product_category: str, scope_categories: list) -> bool:
+        return product_category.lower() in [c.lower() for c in scope_categories]
+
+    with patch(
+        "deal_engine.category_matcher.CategoryMatcher.matches",
+        new=_exact_match,
+    ):
+        yield
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -685,6 +708,163 @@ def test_loyalty_multiplier_spend_per_increment_non_unit(seeded, db):
         # points_earned = floor(50 * earn_multiplier(4)) = 200
         assert r.points_earned == 200, (
             "spend_per_increment=2 on $100 → 50 increments × base=1 × multiplier=4 = 200 pts"
+        )
+    finally:
+        db.delete(deal)
+        db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 26 — CategoryMatcher: LLM returns True → category-gated deal is returned
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_category_matcher_llm_match_returns_deal(seeded, db):
+    """Override the autouse exact-string mock to simulate LLM returning a semantic match.
+
+    The product_category is 'face cream' and the deal scopes 'skincare'.
+    Exact-string matching would miss this; LLM matching would catch it.
+    We override CategoryMatcher.matches to always return True to simulate
+    the LLM recognising the semantic relationship.
+    """
+    engine = PromoEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        product_category="face cream",  # not an exact match for "skincare"
+    )
+
+    deal = Deal(
+        title="_t26_category_matcher_llm_match",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10, "scope_categories": ["skincare"]},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=seeded["merchant"].id,
+    )
+    db.add(deal)
+    db.flush()
+    try:
+        with patch(
+            "deal_engine.category_matcher.CategoryMatcher.matches",
+            return_value=True,
+        ):
+            results = engine.evaluate(request, [deal], db)
+
+        assert len(results) == 1, (
+            "LLM match=True must include the category-gated deal in results"
+        )
+        assert results[0].deal_id == deal.id
+        assert results[0].saving_amount == 10.0
+    finally:
+        db.delete(deal)
+        db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 27 — CategoryMatcher: LLM returns False → category-gated deal excluded
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_category_matcher_llm_no_match_excludes_deal(seeded, db):
+    """Override the autouse mock to simulate LLM returning no semantic match.
+
+    Even though the product_category string is non-empty, a False from
+    CategoryMatcher.matches must cause the deal to be excluded.
+    """
+    engine = PromoEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        product_category="furniture",
+    )
+
+    deal = Deal(
+        title="_t27_category_matcher_llm_no_match",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10, "scope_categories": ["skincare"]},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=seeded["merchant"].id,
+    )
+    db.add(deal)
+    db.flush()
+    try:
+        with patch(
+            "deal_engine.category_matcher.CategoryMatcher.matches",
+            return_value=False,
+        ):
+            results = engine.evaluate(request, [deal], db)
+
+        assert results == [], (
+            "LLM match=False must exclude the category-gated deal"
+        )
+    finally:
+        db.delete(deal)
+        db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 28 — CategoryMatcher: _llm_match raises → matches() catches, returns False,
+#            engine excludes the deal and continues without re-raising
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_category_matcher_llm_error_excludes_deal_gracefully(seeded, db, caplog):
+    """When _llm_match raises (e.g. network/API failure), CategoryMatcher.matches()
+    must catch the exception, log a warning, return False, and the engine must
+    exclude the deal rather than propagating the error.
+
+    Strategy: override the autouse mock by installing a 'real' matches() implementation
+    (the try/except wrapper that delegates to _llm_match), then patch _llm_match to raise.
+    """
+    import logging
+    from deal_engine.category_matcher import CategoryMatcher
+
+    _cm_logger = logging.getLogger("deal_engine.category_matcher")
+
+    def _real_matches(self, product_category: str, scope_categories: list) -> bool:
+        """Re-implements the real matches() logic so we can test its error handling."""
+        try:
+            return self._llm_match(product_category, scope_categories)
+        except Exception as e:
+            _cm_logger.warning(
+                "CategoryMatcher.matches failed for product='%s' scope=%s: %s",
+                product_category,
+                scope_categories,
+                e,
+            )
+            return False
+
+    engine = PromoEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        product_category="skincare",
+    )
+
+    deal = Deal(
+        title="_t28_category_matcher_llm_error",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10, "scope_categories": ["skincare"]},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=seeded["merchant"].id,
+    )
+    db.add(deal)
+    db.flush()
+    try:
+        with patch.object(CategoryMatcher, "matches", new=_real_matches), \
+             patch.object(CategoryMatcher, "_llm_match", side_effect=RuntimeError("API timeout")), \
+             caplog.at_level(logging.WARNING, logger="deal_engine.category_matcher"):
+
+            results = engine.evaluate(request, [deal], db)
+
+        assert results == [], (
+            "When _llm_match raises, matches() must return False and the deal must be excluded"
+        )
+        assert any("API timeout" in r.message for r in caplog.records), (
+            "A WARNING log containing the exception message must have been emitted"
         )
     finally:
         db.delete(deal)

@@ -35,14 +35,14 @@ class ProductResolver:
 
         # STEP B — Scrape the page (ValueError bubbles up to the endpoint)
         page_content = self.scraper.scrape(product_url)
-        
+
         # STEP C — Extract product details (ValueError bubbles up)
         extracted = self.extractor.extract(
             page_content,
             product_url,
             known_merchant_slugs,
         )
-
+        
         # STEP D — Validate that the LLM returned a recognised merchant slug
         if extracted.merchant_slug is None:
             raise ValueError(

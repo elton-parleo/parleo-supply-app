@@ -4,6 +4,7 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from deal_engine.base_engine import BaseEngine
+from deal_engine.category_matcher import CategoryMatcher
 from deal_engine.schemas import AppliedDealResult, TrueCostRequest
 from modules.models import Deal
 from modules.schemas import DealType, RedemptionType
@@ -11,18 +12,11 @@ from modules.schemas import DealType, RedemptionType
 logger = logging.getLogger(__name__)
 
 
-def _category_excluded(deal_details: dict, product_category: str | None) -> bool:
-    """Return True when the deal is category-restricted and the product doesn't qualify."""
-    applicable_categories = deal_details.get("scope_categories", [])
-    if not applicable_categories:
-        return False  # no restriction — always eligible
-    if not product_category:
-        return True   # restriction exists but caller supplied no category — exclude
-    return product_category.lower() not in [c.lower() for c in applicable_categories]
-
-
 class PromoEngine(BaseEngine):
     name = "promo"
+
+    def __init__(self):
+        self.category_matcher = CategoryMatcher()
 
     def evaluate(
         self,
@@ -50,8 +44,14 @@ class PromoEngine(BaseEngine):
                 if min_order is not None and request.product_price < min_order:
                     continue
 
-                if _category_excluded(details, request.product_category):
-                    continue
+                scope_categories = details.get("scope_categories", [])
+                if scope_categories:
+                    if not request.product_category:
+                        continue
+                    if not self.category_matcher.matches(
+                        request.product_category, scope_categories
+                    ):
+                        continue
 
                 scope_channels = details.get("scope_channels", [])
                 if scope_channels and "online" not in [c.lower() for c in scope_channels]:
