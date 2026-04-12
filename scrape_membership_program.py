@@ -103,7 +103,20 @@ if __name__ == "__main__":
         }"""
     
     merchants = {
-        "express": "https://www.express.com/g/insider/program-benefits",
+        "adidas": "https://www.adidas.com/us/adiclub",
+        "asos": "https://www.asos.com/discover/asos-world/",
+        "foot-locker": "https://www.footlocker.com/flx",
+        "lululemon": "https://shop.lululemon.com/membership",
+        "neiman-marcus": "https://www.neimanmarcus.com/my/Loyalty",
+        "saks-fifth-avenue": "https://www.saksfifthavenue.com/saksfirst",
+        "williams-sonoma": "https://www.williams-sonoma.com/pages/the-key-rewards/",
+        "sur-la-table": "https://www.surlatable.com/perks/",
+        "fabletics": "https://www.fabletics.com/vip-program",
+        "academy-sports-outdoors": "https://www.academy.com/myacademy",
+        "mac-cosmetics": "https://www.maccosmetics.com/mac-lover",
+        "charlotte-tilbury": "https://www.charlottetilbury.com/us/loyalty-landing-page",
+        "hm-us": "https://www2.hm.com/en_us/member/info.html",
+        "ikea-us": "https://www.ikea.com/us/en/ikea-family",
     }
     
     for merchant_slug, url in merchants.items():
