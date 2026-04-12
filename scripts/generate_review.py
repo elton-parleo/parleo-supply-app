@@ -1,7 +1,7 @@
 from loguru import logger
 from modules.database import Session
 from modules.ChatClient import ChatClient
-from scraper.fetch_metadata import fetch_metadata
+from modules.scraper.fetch_metadata import fetch_metadata
 from etl.load import DataLoader
 
 def get_urls(limit):
