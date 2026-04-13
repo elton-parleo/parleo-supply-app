@@ -12,7 +12,7 @@ from product_resolver.schemas import ProductResolverRequest, ProductTrueCostResp
 from product_resolver.resolver import ProductResolver
 from mcp_server import mcp
 
-mcp_app = mcp.http_app(path="/mcp")
+mcp_app = mcp.http_app(path="/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.mount("", mcp_app)
+app.mount("/mcp", mcp_app)
 
 app.add_middleware(
     CORSMiddleware,
