@@ -12,6 +12,9 @@ from product_resolver.resolver import ProductResolver
 
 app = FastAPI()
 
+from mcp_server import mcp  # noqa: E402 — imported after app to avoid circular init
+app.mount("/mcp", mcp.http_app(path="/"))
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
