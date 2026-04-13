@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List
@@ -9,11 +10,18 @@ from deal_engine.orchestrator import DealOrchestrator
 from deal_engine.calculator import TrueCostCalculator
 from product_resolver.schemas import ProductResolverRequest, ProductTrueCostResponse
 from product_resolver.resolver import ProductResolver
+from mcp_server import mcp
 
-app = FastAPI()
+mcp_app = mcp.http_app(path="/mcp")
 
-from mcp_server import mcp  # noqa: E402 — imported after app to avoid circular init
-app.mount("/mcp", mcp.http_app(path="/"))
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with mcp_app.lifespan(app):
+        yield
+
+app = FastAPI(lifespan=lifespan)
+
+app.mount("/mcp", mcp_app)
 
 app.add_middleware(
     CORSMiddleware,
