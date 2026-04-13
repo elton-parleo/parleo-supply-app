@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     async with mcp_app.lifespan(app):
         yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, redirect_slashes=False)
 
 app.mount("/mcp", mcp_app)
 
