@@ -35,6 +35,16 @@ mcp = FastMCP(
 
 register_product_tools(mcp)
 
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8001"))
+    logger.info(f"Starting Deal Finder MCP server on port {port}")
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=port,
+        path="/mcp",
+    )
+
 # v2 OAuth upgrade note:
 # To add OAuth, replace mcp.run() with FastMCP's OAuth configuration:
 #   from fastmcp.auth import OAuthProvider
