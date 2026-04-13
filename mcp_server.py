@@ -12,9 +12,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
-    name="Honey Deal Finder",
+    name="Deal Finder",
     instructions="""
-    You are connected to the Honey Deal Finder, a tool that finds the true
+    You are connected to the Deal Finder, a tool that finds the true
     cost of products after applying all eligible deals, promo codes, and
     loyalty program perks.
 

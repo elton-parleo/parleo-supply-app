@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.mount("/mcp", mcp_app)
+app.mount("", mcp_app)
 
 app.add_middleware(
     CORSMiddleware,

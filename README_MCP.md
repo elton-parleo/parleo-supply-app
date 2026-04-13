@@ -1,7 +1,7 @@
-# Honey Deal Finder — MCP Connector
+# Deal Finder — MCP Connector
 
 ## Overview
-Honey Deal Finder helps you find the true cost of any product by
+Deal Finder helps you find the true cost of any product by
 automatically applying all eligible promo codes, category discounts,
 and loyalty program perks. Paste a product URL and get back the real
 price you'll pay after every available deal.
