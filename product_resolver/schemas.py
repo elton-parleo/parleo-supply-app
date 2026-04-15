@@ -17,6 +17,8 @@ class ExtractedProduct(BaseModel):
     # Optional[str] because the LLM is instructed to return null when the
     # merchant is not in the known-slug list; the resolver validates this.
     merchant_slug: Optional[str] = None
+    brand: Optional[str] = None
+    # e.g. "MAC", "NARS", "Rare Beauty", "Charlotte Tilbury"
     product_name: str
     product_sku: Optional[str] = None
     product_category: Optional[str] = None
@@ -32,5 +34,6 @@ class ProductTrueCostResponse(BaseModel):
     product_name: str
     product_sku: Optional[str]
     product_category: Optional[str]
+    brand: Optional[str] = None
     merchant_slug: str
     true_cost_result: TrueCostResponse

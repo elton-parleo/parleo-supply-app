@@ -49,12 +49,14 @@ def _make_extracted(
     merchant_slug="test-merchant",
     product_price=100.0,
     product_category="skincare",
+    brand="NARS",
 ) -> ExtractedProduct:
     return ExtractedProduct(
         merchant_slug=merchant_slug,
         product_name="Test Moisturiser",
         product_sku="SKU-001",
         product_category=product_category,
+        brand=brand,
         product_price=product_price,
         currency="USD",
         extraction_confidence=0.95,
@@ -91,7 +93,10 @@ def _make_product_true_cost_response() -> ProductTrueCostResponse:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_resolver_happy_path(db):
-    extracted = _make_extracted(merchant_slug="test-merchant", product_price=100.0)
+    extracted = _make_extracted(
+        merchant_slug="test-merchant", product_price=100.0,
+        product_category="skincare", brand="NARS",
+    )
 
     with (
         patch.object(ProductScraper, "scrape", return_value="fake page content") as mock_scrape,
@@ -104,6 +109,9 @@ def test_resolver_happy_path(db):
     assert isinstance(result, ProductTrueCostResponse)
     assert result.merchant_slug == "test-merchant"
     assert result.true_cost_result.product_price == 100.0
+
+    # brand flows through to the response
+    assert result.brand == "NARS", "brand from extractor must be present on ProductTrueCostResponse"
 
     # Extractor was called with known slugs that include "test-merchant"
     _, extract_call_kwargs = mock_extract.call_args
@@ -256,4 +264,41 @@ def test_user_tier_name_passed_to_engine(db):
     assert len(captured_requests) == 1
     assert captured_requests[0].user_tier_name == "Gold", (
         "user_tier_name='Gold' must be present on the TrueCostRequest passed to the deal engine"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 29 — brand flows from extractor through to TrueCostRequest
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_brand_passed_to_engine(db):
+    """Confirm brand extracted from the product page is present on the
+    TrueCostRequest that reaches the deal engine orchestrator.
+    """
+    from deal_engine.orchestrator import DealOrchestrator
+    from modules.models import Merchant
+
+    extracted = _make_extracted(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        brand="Charlotte Tilbury",
+    )
+    captured_requests = []
+
+    def fake_run(req, session):
+        captured_requests.append(req)
+        merchant = session.query(Merchant).filter_by(slug="test-merchant").first()
+        return {"merchant": merchant, "active_deals": [], "engine_results": {"promo": [], "loyalty": []}}
+
+    with (
+        patch.object(ProductScraper, "scrape", return_value="fake page content"),
+        patch.object(ProductExtractor, "extract", return_value=extracted),
+        patch.object(DealOrchestrator, "run", side_effect=fake_run),
+    ):
+        resolver = ProductResolver()
+        resolver.resolve("https://test.com/product", db)
+
+    assert len(captured_requests) == 1
+    assert captured_requests[0].brand == "Charlotte Tilbury", (
+        "brand='Charlotte Tilbury' must be present on the TrueCostRequest passed to the deal engine"
     )

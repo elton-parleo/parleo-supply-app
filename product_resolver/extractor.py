@@ -21,6 +21,7 @@ set merchant_slug to null.
 Return this JSON structure:
 {{
   "merchant_slug": "<slug from the list above, or null if not found>",
+  "brand": "<brand name of the product, e.g. 'MAC', 'NARS', null if unknown>",
   "product_name": "<full product name>",
   "product_sku": "<SKU or product ID if present, otherwise null>",
   "product_category": "<product category, e.g. 'skincare', 'lipstick', 'foundation', otherwise null>",
@@ -31,6 +32,9 @@ Return this JSON structure:
 
 Rules:
 - merchant_slug MUST be an exact string from the list above, or null. Do not invent slugs.
+- brand should be the manufacturer or product line brand, not the merchant/retailer name.
+  For example, on a Sephora page selling MAC lipstick, brand is "MAC", not "Sephora".
+- If brand cannot be determined, set to null.
 - product_price must be a number (float), not a string.
 - If you cannot determine a field with confidence, set it to null.
 - Return ONLY the JSON object. No preamble, no explanation, no markdown fences.

@@ -10,6 +10,9 @@ class TrueCostRequest(BaseModel):
     merchant_slug: str
     product_price: float
     product_category: Optional[str] = None
+    brand: Optional[str] = None
+    # The brand of the product being evaluated.
+    # Used by engines to filter brand-specific deals.
     user_tier_name: Optional[str] = None
     user_points_balance: Optional[int] = 0
 

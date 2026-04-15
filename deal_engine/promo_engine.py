@@ -53,6 +53,14 @@ class PromoEngine(BaseEngine):
                     ):
                         continue
 
+                # TODO v2: handle brand aliases e.g. "MAC Cosmetics" -> "MAC"
+                scope_brands = details.get("scope_brands", [])
+                if scope_brands:
+                    if not request.brand:
+                        continue
+                    if request.brand.lower() not in [b.lower() for b in scope_brands]:
+                        continue
+
                 scope_channels = details.get("scope_channels", [])
                 if scope_channels and "online" not in [c.lower() for c in scope_channels]:
                     # TODO v2: accept channel as input on TrueCostRequest

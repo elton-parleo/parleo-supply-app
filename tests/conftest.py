@@ -107,7 +107,7 @@ def db():
         title="3x points for Gold members",
         deal_type=DealType.MULTIPLIER,
         redemption_method=RedemptionType.AUTOMATIC,
-        deal_details={"earn_multiplier": 3, "earn_base_value": 1, "spend_per_increment": 1, "scope_categories": ["skincare"]},
+        deal_details={"earn_multiplier": 3, "earn_base_value": 1, "spend_per_increment": 1, "scope_categories": ["skincare"], "scope_brands": ["NARS", "Charlotte Tilbury"]},
         is_stackable=True,
         is_evergreen=True,
         merchant_id=merchant.id,

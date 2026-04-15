@@ -192,6 +192,7 @@ def test_loyalty_gold_gets_only_gold_tier_deals(seeded, db):
         product_price=100.0,
         user_tier_name="Gold",
         product_category="skincare",
+        brand="NARS",  # deal3 now requires scope_brands=["NARS", "Charlotte Tilbury"]
     )
 
     all_loyalty_deals = [seeded["deal3"], seeded["deal4"], seeded["deal5"]]
@@ -331,13 +332,14 @@ def test_loyalty_matching_category_returns_deals(seeded, db):
         product_price=100.0,
         user_tier_name="Gold",
         product_category="skincare",
+        brand="NARS",  # deal3 now requires scope_brands=["NARS", "Charlotte Tilbury"]
     )
 
     results = engine.evaluate(request, [seeded["deal3"], seeded["deal4"]], db)
 
     result_ids = {r.deal_id for r in results}
     assert seeded["deal3"].id in result_ids, (
-        "3x multiplier must be returned when product_category matches 'skincare'"
+        "3x multiplier must be returned when product_category matches 'skincare' and brand matches"
     )
     assert seeded["deal4"].id in result_ids, (
         "20% Gold discount must be returned when product_category matches 'skincare'"
@@ -869,3 +871,95 @@ def test_category_matcher_llm_error_excludes_deal_gracefully(seeded, db, caplog)
     finally:
         db.delete(deal)
         db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 29 — Brand match: deal with scope_brands returned when brand matches
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_brand_match_returns_deal(seeded, db):
+    engine = LoyaltyEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Gold",
+        product_category="skincare",
+        brand="NARS",
+    )
+
+    results = engine.evaluate(request, [seeded["deal3"]], db)
+
+    result_ids = {r.deal_id for r in results}
+    assert seeded["deal3"].id in result_ids, (
+        "Deal with scope_brands=['NARS', 'Charlotte Tilbury'] must be returned "
+        "when brand='NARS' matches"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 30 — Brand mismatch: deal with scope_brands excluded when brand does not match
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_brand_mismatch_excludes_deal(seeded, db):
+    engine = LoyaltyEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Gold",
+        product_category="skincare",
+        brand="MAC",
+    )
+
+    results = engine.evaluate(request, [seeded["deal3"]], db)
+
+    result_ids = {r.deal_id for r in results}
+    assert seeded["deal3"].id not in result_ids, (
+        "Deal with scope_brands=['NARS', 'Charlotte Tilbury'] must be excluded "
+        "when brand='MAC' does not match (category 'skincare' matches but brand does not)"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 31 — No brand provided: deal with scope_brands excluded conservatively
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_no_brand_excludes_brand_scoped_deal(seeded, db):
+    engine = LoyaltyEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Gold",
+        product_category="skincare",
+        brand=None,
+    )
+
+    results = engine.evaluate(request, [seeded["deal3"]], db)
+
+    result_ids = {r.deal_id for r in results}
+    assert seeded["deal3"].id not in result_ids, (
+        "Deal with scope_brands must be excluded when request.brand is None "
+        "(cannot verify brand — exclude conservatively)"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 32 — Deal with no scope_brands applies to all brands
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_no_scope_brands_applies_to_all_brands(seeded, db):
+    engine = LoyaltyEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Gold",
+        product_category="skincare",
+        brand="MAC",
+    )
+
+    # deal4: 20% Gold discount, scope_categories=["skincare"], no scope_brands
+    results = engine.evaluate(request, [seeded["deal4"]], db)
+
+    result_ids = {r.deal_id for r in results}
+    assert seeded["deal4"].id in result_ids, (
+        "Deal with no scope_brands must be returned regardless of brand"
+    )

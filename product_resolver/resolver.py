@@ -35,16 +35,13 @@ class ProductResolver:
 
         # STEP B — Scrape the page (ValueError bubbles up to the endpoint)
         page_content = self.scraper.scrape(product_url)
-        print('111111: ', page_content)
-
+        
         # STEP C — Extract product details (ValueError bubbles up)
         extracted = self.extractor.extract(
             page_content,
             product_url,
             known_merchant_slugs,
         )
-        print('222222: ', extracted)
-
 
         # STEP D — Validate that the LLM returned a recognised merchant slug
         if extracted.merchant_slug is None:
@@ -64,6 +61,7 @@ class ProductResolver:
             merchant_slug=extracted.merchant_slug,
             product_price=extracted.product_price,
             product_category=extracted.product_category,
+            brand=extracted.brand,
             user_tier_name=user_tier_name,
             user_points_balance=0,
         )
@@ -76,6 +74,7 @@ class ProductResolver:
             product_name=extracted.product_name,
             product_sku=extracted.product_sku,
             product_category=extracted.product_category,
+            brand=extracted.brand,
             merchant_slug=extracted.merchant_slug,
             true_cost_result=true_cost_result,
         )
