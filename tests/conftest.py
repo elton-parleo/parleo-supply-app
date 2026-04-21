@@ -52,7 +52,7 @@ _TestSession = sessionmaker(bind=_test_engine)
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def db():
     """
     Single SQLite session seeded with:
@@ -215,7 +215,7 @@ def db():
     session.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def seeded(db):
     """Returns a dict of named ORM objects so tests can reference IDs/ranks."""
     merchant = db.query(Merchant).filter_by(slug="test-merchant").first()
@@ -243,7 +243,7 @@ def seeded(db):
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def client(db):
     """TestClient with get_db overridden to use the SQLite test session."""
     def _override():

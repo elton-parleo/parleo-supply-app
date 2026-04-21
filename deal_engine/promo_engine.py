@@ -25,6 +25,7 @@ class PromoEngine(BaseEngine):
         db: Session,
     ) -> List[AppliedDealResult]:
         try:
+            logger.info("PromoEngine.evaluate called: %d deals, merchant=%s", len(deals), request.merchant_slug)
             # STEP 1 — Filter eligible deals
             eligible: List[Deal] = []
             for deal in deals:
