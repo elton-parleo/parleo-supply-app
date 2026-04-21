@@ -30,6 +30,10 @@ class AppliedDealResult(BaseModel):
     is_stackable: bool
     applied: bool
     not_applied_reason: Optional[str] = None
+    promo_code: Optional[str] = None
+    # Populated by engines when redemption_method == PROMO_CODE.
+    # Surfaces the code the user must enter at checkout.
+    # Null for AUTOMATIC and ACTIVATED deals.
 
 
 class TrueCostResponse(BaseModel):

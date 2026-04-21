@@ -1775,3 +1775,342 @@ def test_filter_eligible_deals_tier_rank_mismatch(seeded, db):
         "Gold deal (rank=3) must NOT be returned for Silver user (rank=2)"
     )
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 52 — Members-only PROMO_CODE deal is discovered without a user-supplied code
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_discount_promo_code_discovered_without_input(seeded, db):
+    """LoyaltyDiscountEngine must return PROMO_CODE deals regardless of whether
+    the user supplied any code. The deal's promo_code string must be surfaced
+    on the result so the caller knows what to enter at checkout."""
+    engine = LoyaltyDiscountEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Bronze",
+    )
+    results = engine.evaluate(request, [seeded["deal12"]], db)
+
+    deal_ids = {r.deal_id for r in results}
+    assert seeded["deal12"].id in deal_ids, (
+        "PROMO_CODE deal must be discovered and returned without a user-supplied code"
+    )
+    matched = next(r for r in results if r.deal_id == seeded["deal12"].id)
+    assert matched.saving_amount == 20.0, "20% of $100 must yield saving_amount=20.0"
+    assert matched.redemption_method == RedemptionType.PROMO_CODE, (
+        "Result must carry redemption_method=PROMO_CODE"
+    )
+    assert matched.promo_code == "MEMBER20", (
+        "promo_code field on result must surface the deal's code string"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 54 — All three redemption types discovered together
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_discount_all_redemption_types_discovered(seeded, db):
+    """PROMO_CODE, AUTOMATIC, and ACTIVATED deals must all appear in results
+    for an eligible member — no redemption type is gated on user input."""
+    engine = LoyaltyDiscountEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Bronze",
+    )
+    results = engine.evaluate(
+        request,
+        [seeded["deal12"], seeded["deal13"], seeded["deal14"]],
+        db,
+    )
+
+    deal_ids = {r.deal_id for r in results}
+    assert seeded["deal12"].id in deal_ids, "PROMO_CODE deal must be discovered"
+    assert seeded["deal13"].id in deal_ids, "AUTOMATIC deal must be included"
+    assert seeded["deal14"].id in deal_ids, "ACTIVATED deal must be included"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 55 — Non-member is excluded regardless of deal type
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_discount_non_member_excluded(seeded, db):
+    """A user with no tier (non-member) must receive nothing — the program/tier
+    eligibility check fires before any redemption-type logic."""
+    engine = LoyaltyDiscountEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name=None,
+    )
+    results = engine.evaluate(request, [seeded["deal12"]], db)
+
+    assert results == [], "Non-member must receive no results"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 56 — AUTOMATIC and PROMO_CODE deals both discovered together
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_discount_automatic_and_promo_code_both_discovered(seeded, db):
+    """Both AUTOMATIC and PROMO_CODE deals must appear in results together."""
+    engine = LoyaltyDiscountEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Bronze",
+    )
+    results = engine.evaluate(
+        request,
+        [seeded["deal12"], seeded["deal13"]],
+        db,
+    )
+
+    deal_ids = {r.deal_id for r in results}
+    assert seeded["deal13"].id in deal_ids, "AUTOMATIC deal must be included"
+    assert seeded["deal12"].id in deal_ids, "PROMO_CODE deal must be discovered alongside AUTOMATIC"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 57 — ACTIVATED deal applied to eligible member (MVP behaviour)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_loyalty_discount_activated_applied_to_eligible_member(seeded, db):
+    """ACTIVATED deals must be applied to eligible members without any
+    activation-state check at MVP."""
+    engine = LoyaltyDiscountEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+        user_tier_name="Bronze",
+    )
+    results = engine.evaluate(request, [seeded["deal14"]], db)
+
+    deal_ids = {r.deal_id for r in results}
+    assert seeded["deal14"].id in deal_ids, (
+        "ACTIVATED deal must be applied to eligible member at MVP "
+        "(activation tracking is a v2 concern)"
+    )
+    matched = next(r for r in results if r.deal_id == seeded["deal14"].id)
+    assert matched.saving_amount == 5.0, "5% of $100 must yield saving_amount=5.0"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 60 — Full orchestrator flow: PROMO_CODE deal applied in stage 1 optimistically
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_orchestrator_member_promo_code_applied_in_stage1(db):
+    """PROMO_CODE deal is discovered optimistically in stage 1 without any
+    user-supplied code. Its saving reduces the preliminary price passed to stage 2.
+    A 1x multiplier seeded alongside it receives preliminary_price=80, yielding 80 pts."""
+    from deal_engine.orchestrator import DealOrchestrator
+    from modules.models import Merchant, MembershipProgram, Tier
+
+    merchant = Merchant(name="_T60 Merchant", slug="_t60_merchant", url="https://t60.test")
+    db.add(merchant)
+    db.flush()
+
+    program = MembershipProgram(
+        merchant_id=merchant.id,
+        program_name="_T60 Program",
+        program_description="",
+    )
+    db.add(program)
+    db.flush()
+
+    bronze_tier = Tier(program_id=program.id, name="Bronze", rank=1)
+    db.add(bronze_tier)
+    db.flush()
+
+    deal_promo = Deal(
+        title="_T60 20% promo code deal",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.PROMO_CODE,
+        promo_code="MEMBER20",
+        deal_details={"discount_percent": 20},
+        is_stackable=False,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    deal_multiplier = Deal(
+        title="_T60 1x multiplier",
+        deal_type=DealType.MULTIPLIER,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"earn_multiplier": 1, "earn_base_value": 1, "spend_per_increment": 1},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    db.add(deal_promo)
+    db.add(deal_multiplier)
+    db.commit()
+
+    try:
+        orchestrator = DealOrchestrator()
+        request = TrueCostRequest(
+            merchant_slug="_t60_merchant",
+            product_price=100.0,
+            user_tier_name="Bronze",
+        )
+        result = orchestrator.run(request, db)
+
+        discount_results = result["engine_results"]["loyalty_discount"]
+        promo_matches = [r for r in discount_results if r.deal_id == deal_promo.id]
+        assert len(promo_matches) == 1, (
+            "PROMO_CODE deal must appear in loyalty_discount stage 1 results"
+        )
+        assert promo_matches[0].saving_amount == 20.0, "20% of $100 must yield saving_amount=20.0"
+        assert promo_matches[0].promo_code == "MEMBER20", (
+            "promo_code field must surface the deal's code string"
+        )
+
+        # Multiplier receives preliminary_price=80 (after 20% off), so points_earned=80
+        points_results = result["engine_results"]["loyalty_points"]
+        mult_matches = [r for r in points_results if r.deal_id == deal_multiplier.id]
+        assert len(mult_matches) == 1, "Multiplier must appear in loyalty_points results"
+        assert mult_matches[0].points_earned == 80, (
+            "1x multiplier on preliminary_price=80 must yield 80 points, "
+            f"got {mult_matches[0].points_earned}"
+        )
+    finally:
+        db.delete(deal_promo)
+        db.delete(deal_multiplier)
+        db.delete(bronze_tier)
+        db.delete(program)
+        db.delete(merchant)
+        db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 61 — Orchestrator: PROMO_CODE (non-stackable) beats AUTOMATIC (stackable)
+#           in preliminary price when it offers a larger saving
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_orchestrator_promo_code_beats_automatic_when_larger(db):
+    """With both a PROMO_CODE deal (20% off, non-stackable) and an AUTOMATIC deal
+    (10% off, stackable), the preliminary price algorithm picks the best option:
+      Option 1: non-stackable alone = 80
+      Option 2: stackable stack     = 90
+    Best is min(80, 90) = 80, so the multiplier earns 80 points."""
+    from deal_engine.orchestrator import DealOrchestrator
+    from modules.models import Merchant, MembershipProgram, Tier
+
+    merchant = Merchant(name="_T61 Merchant", slug="_t61_merchant", url="https://t61.test")
+    db.add(merchant)
+    db.flush()
+
+    program = MembershipProgram(
+        merchant_id=merchant.id,
+        program_name="_T61 Program",
+        program_description="",
+    )
+    db.add(program)
+    db.flush()
+
+    bronze_tier = Tier(program_id=program.id, name="Bronze", rank=1)
+    db.add(bronze_tier)
+    db.flush()
+
+    deal_promo = Deal(
+        title="_T61 20% promo code deal",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.PROMO_CODE,
+        promo_code="MEMBER20",
+        deal_details={"discount_percent": 20},
+        is_stackable=False,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    deal_auto = Deal(
+        title="_T61 10% automatic deal",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    deal_multiplier = Deal(
+        title="_T61 1x multiplier",
+        deal_type=DealType.MULTIPLIER,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"earn_multiplier": 1, "earn_base_value": 1, "spend_per_increment": 1},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    db.add(deal_promo)
+    db.add(deal_auto)
+    db.add(deal_multiplier)
+    db.commit()
+
+    try:
+        orchestrator = DealOrchestrator()
+        request = TrueCostRequest(
+            merchant_slug="_t61_merchant",
+            product_price=100.0,
+            user_tier_name="Bronze",
+        )
+        result = orchestrator.run(request, db)
+
+        discount_results = result["engine_results"]["loyalty_discount"]
+        discount_ids = {r.deal_id for r in discount_results}
+
+        assert deal_promo.id in discount_ids, (
+            "PROMO_CODE deal must be discovered optimistically in stage 1"
+        )
+        assert deal_auto.id in discount_ids, (
+            "AUTOMATIC deal must also appear in stage 1 results"
+        )
+
+        # Preliminary price: best of (non-stackable 20%=80) vs (stackable 10%=90) → 80
+        # Multiplier therefore earns 80 points
+        points_results = result["engine_results"]["loyalty_points"]
+        mult_matches = [r for r in points_results if r.deal_id == deal_multiplier.id]
+        assert len(mult_matches) == 1
+        assert mult_matches[0].points_earned == 80, (
+            "Non-stackable PROMO_CODE 20% off wins preliminary price calculation: "
+            "1x multiplier on preliminary_price=80 must yield 80 points, "
+            f"got {mult_matches[0].points_earned}"
+        )
+    finally:
+        db.delete(deal_promo)
+        db.delete(deal_auto)
+        db.delete(deal_multiplier)
+        db.delete(bronze_tier)
+        db.delete(program)
+        db.delete(merchant)
+        db.flush()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 62 — PromoEngine surfaces promo_code on public PROMO_CODE deals
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_promo_engine_surfaces_promo_code(seeded, db):
+    """PromoEngine must surface the deal's promo_code string on the result for
+    PROMO_CODE redemption deals. deal2 is a public PROMO_CODE 'SAVE15' deal."""
+    from deal_engine.promo_engine import PromoEngine
+
+    engine = PromoEngine()
+    request = TrueCostRequest(
+        merchant_slug="test-merchant",
+        product_price=100.0,
+    )
+    results = engine.evaluate(request, [seeded["deal2"]], db)
+
+    assert any(r.deal_id == seeded["deal2"].id for r in results), (
+        "deal2 (public PROMO_CODE SAVE15) must appear in PromoEngine results"
+    )
+    matched = next(r for r in results if r.deal_id == seeded["deal2"].id)
+    assert matched.promo_code == "SAVE15", (
+        "promo_code field must surface 'SAVE15' for deal2"
+    )
+    assert matched.redemption_method == RedemptionType.PROMO_CODE

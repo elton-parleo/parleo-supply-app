@@ -208,7 +208,41 @@ def db():
         is_evergreen=True,
         merchant_id=merchant.id,
     )
-    session.add_all([deal1, deal2, deal3, deal4, deal5, deal6, deal7, deal8, deal9, deal10, deal11])
+    # Deal 12 — program-wide members-only PROMO_CODE DISCOUNT 20%, NOT stackable, evergreen
+    deal12 = Deal(
+        title="Members 20% promo code discount",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.PROMO_CODE,
+        promo_code="MEMBER20",
+        deal_details={"discount_percent": 20},
+        is_stackable=False,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    # Deal 13 — program-wide members-only AUTOMATIC DISCOUNT 10%, stackable, evergreen
+    deal13 = Deal(
+        title="Members 10% automatic discount",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.AUTOMATIC,
+        deal_details={"discount_percent": 10},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    # Deal 14 — program-wide members-only ACTIVATED DISCOUNT 5%, stackable, evergreen
+    deal14 = Deal(
+        title="Members 5% activated discount",
+        deal_type=DealType.DISCOUNT,
+        redemption_method=RedemptionType.ACTIVATED,
+        deal_details={"discount_percent": 5},
+        is_stackable=True,
+        is_evergreen=True,
+        merchant_id=merchant.id,
+        program_id=program.id,
+    )
+    session.add_all([deal1, deal2, deal3, deal4, deal5, deal6, deal7, deal8, deal9, deal10, deal11, deal12, deal13, deal14])
     session.commit()
 
     yield session
@@ -240,6 +274,9 @@ def seeded(db):
         "deal9": deal_map["3x points per $3 for Gold members"],
         "deal10": deal_map["20% off capped at $15"],
         "deal11": deal_map["10% off in-store only"],
+        "deal12": deal_map["Members 20% promo code discount"],
+        "deal13": deal_map["Members 10% automatic discount"],
+        "deal14": deal_map["Members 5% activated discount"],
     }
 
 

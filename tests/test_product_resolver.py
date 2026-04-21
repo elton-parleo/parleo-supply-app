@@ -16,6 +16,7 @@ from product_resolver.resolver import ProductResolver
 from product_resolver.scraper import ProductScraper
 from product_resolver.extractor import ProductExtractor
 from product_resolver.schemas import ExtractedProduct, ProductTrueCostResponse
+from deal_engine.orchestrator import DealOrchestrator
 from deal_engine.schemas import TrueCostResponse
 
 
@@ -98,9 +99,16 @@ def test_resolver_happy_path(db):
         product_category="skincare", brand="NARS",
     )
 
+    captured = {}
+    _real_run = DealOrchestrator.run
+    def _spy_run(self, request, db_session):
+        captured["request"] = request
+        return _real_run(self, request, db_session)
+
     with (
         patch.object(ProductScraper, "scrape", return_value="fake page content") as mock_scrape,
         patch.object(ProductExtractor, "extract", return_value=extracted) as mock_extract,
+        patch.object(DealOrchestrator, "run", _spy_run),
     ):
         resolver = ProductResolver()
         result = resolver.resolve("https://test.com/product", db)

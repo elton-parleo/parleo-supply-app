@@ -12,7 +12,7 @@ from deal_engine.loyalty_eligibility import (
 )
 from deal_engine.schemas import AppliedDealResult, TrueCostRequest
 from modules.models import Deal
-from modules.schemas import DealType
+from modules.schemas import DealType, RedemptionType
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,11 @@ class LoyaltyDiscountEngine(BaseEngine):
                             points_earned=None,
                             is_stackable=deal.is_stackable,
                             applied=True,
+                            promo_code=(
+                                deal.promo_code
+                                if deal.redemption_method == RedemptionType.PROMO_CODE
+                                else None
+                            ),
                         )
                     )
                 except Exception as exc:

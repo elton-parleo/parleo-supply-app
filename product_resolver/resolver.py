@@ -157,7 +157,6 @@ class ProductResolver:
                 f"in the known merchant list: {', '.join(known_merchant_slugs)}"
             )
 
-        print(f'BEBUG extract: {extracted}')
         # STEP G — Build TrueCostRequest and run the deal engine
         request = TrueCostRequest(
             merchant_slug=extracted.merchant_slug,

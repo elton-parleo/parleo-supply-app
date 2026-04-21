@@ -304,9 +304,70 @@ def extract_membership_program_info(markdown_data: str, company_name: str, progr
     user_prompt = f"You are given the following markdown data of the details and perk of {company_name} membership program webpage: {markdown_data}. Please codify it into a structured json to be stored in the Deal table. {deal_table}. "
     user_prompt += f"\n\nPopulate the deal_details JSON field for each deal strictly according to the following schema. Only include fields relevant to each specific deal — omit inapplicable fields entirely rather than setting them to null. Choose the correct field group based on the deal's deal_type.\n{DEAL_DETAILS_SCHEMA}"
     if existing_program:
-        user_prompt += f"Here is the existing structured data we have for {company_name}: {existing_program}. If the markdown data contains updates to the existing program, please update the structured data accordingly. If there are no changes, return the existing structured data as is. Only return None for fields that are completely missing from the markdown data or existing program. Please write and populate the membership program description."
+        user_prompt += f"Here is the existing structured data we have for {company_name}: {existing_program}. If the markdown data contains updates to the existing program, please update the structured data accordingly. If there are no changes, return the existing structured data as is. Only return None for fields that are completely missing from the markdown data or existing program."
 
     logger.info(f"Generating structured deal info for {company_name}...")
+    result = client.generate(
+        user_prompt=user_prompt,
+        schema=program_schema,
+    )
+
+    return result
+
+
+def extract_deal_info(markdown_data: str, company_name: str, program_schema: dict, existing_program: dict = None):
+    system_prompt = "You crawl the web and extract information."
+
+    deal_table = f"""
+    class DealType(enum.Enum):
+        MULTIPLIER = "MULTIPLIER"       # e.g., 4x points
+        FLAT_REWARD = "FLAT_REWARD"     # e.g., 1 pt per $1
+        DISCOUNT = "DISCOUNT"           # e.g., 20% off
+        SHIPPING = "SHIPPING"           # e.g., Free 2-day shipping
+        GIFT = "GIFT"      # e.g., Free sample at checkout
+
+    class RedemptionType(enum.Enum):
+        AUTOMATIC = "AUTOMATIC"      # No action needed (e.g., Sephora 1pt/$1)
+        PROMO_CODE = "PROMO_CODE"    # Requires a string at checkout (e.g., 'SAVE20')
+        ACTIVATED = "ACTIVATED"      # Must "clip" or "load" in-app (e.g., Starbucks Star Days)
+
+    class Deal(Base):
+        title = Column(Text, nullable=False)
+        redemption_method = Column(Enum(RedemptionType), nullable=False, default=RedemptionType.AUTOMATIC)
+
+        # The actual code string (NULL if redemption_method is AUTOMATIC)
+        promo_code = Column(Text)
+
+        # Logic Flags
+        is_evergreen = Column(Boolean, default=False) # True for the "always on" 1pt/$1
+        is_stackable = Column(Boolean, default=True)  # Can this be combined with other deals?
+        deal_type = Column(Enum(DealType), nullable=False)
+        deal_details = Column(JSON) # The JSONB column for flexible deal logic
+
+        # Timing
+        valid_from = Column(DateTime, default=func.now())
+        valid_until = Column(DateTime)
+        updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    """
+
+    client = ChatClient(system_prompt=system_prompt)
+    user_prompt = (
+        f"You are given the following markdown data of a {company_name} webpage: {markdown_data}. "
+        f"Your task is to extract every deal or promotion present on this page and codify each one into a structured entry for the Deal table. {deal_table}. "
+        f"\n\nFor each deal, populate the deal_details JSON field strictly according to the following schema. "
+        f"Only include fields relevant to each specific deal — omit inapplicable fields entirely rather than setting them to null. "
+        f"Choose the correct field group based on the deal's deal_type.\n{DEAL_DETAILS_SCHEMA}"
+    )
+    if existing_program:
+        user_prompt += (
+            f"\n\nHere is the existing structured program data we have for {company_name}: {existing_program}. "
+            f"Merge the newly extracted deals into the existing program's deals list: "
+            f"update any deal whose title or deal_details clearly match an existing entry, and append genuinely new deals. "
+            f"Do not remove deals that are not mentioned on this page — preserve them as-is. "
+            f"Return the full updated program object in the same schema."
+        )
+
+    logger.info(f"Extracting and merging deal info for {company_name}...")
     result = client.generate(
         user_prompt=user_prompt,
         schema=program_schema,

@@ -3,13 +3,14 @@ import json
 from modules.database import Session
 from loguru import logger
 
-from modules.scraper.scraper_firecrawl import extract_membership_program_info, make_schema_strict, scrape_and_extract_info
+from modules.scraper.scraper_firecrawl import extract_membership_program_info, make_schema_strict, scrape_and_extract_info, extract_deal_info
 from etl.load import DataLoader
 from modules.schemas import MerchantProgramDealSchema
 
 
 if __name__ == "__main__":
     update_program = True
+    parse_deals_only = True
     # get all merchants 
     # contruct json {slug: url} from merchant objects
     
@@ -103,31 +104,11 @@ if __name__ == "__main__":
         }"""
     
     merchants = {
-            "home-depot": "https://www.homedepot.com/proxtra",
-            "lowes": "https://www.lowes.com/l/about/mylowes-rewards",
-            "gamestop": "https://www.gamestop.com/pro/",
-            "pottery-barn": "https://www.potterybarn.com/pages/the-key-rewards/",
-            "barnes-and-noble": "https://www.barnesandnoble.com/membership",
-            "staples": "https://www.staples.com/rewards",
-            "office-depot": "https://www.officedepot.com/l/rewards",
-            "michaels": "https://www.michaels.com/rewards",
-            "petco": "https://www.petco.com/vitalcare",
-            "chewy": "https://www.chewy.com/app/membership/sign-up",
-            "our-place": "https://fromourplace.com/pages/dirty-dishes-club",
-            "hydro-flask": "https://www.hydroflask.com/house-of-hydro-rewards",
-            "starbucks": "https://www.starbucks.com/rewards",
-            "dunkin": "https://www.dunkindonuts.com/en/dunkinrewards",
-            "chipotle": "https://www.chipotle.com/rewards",
-            "panera-bread": "https://www.panerabread.com/mypanera",
-            "hellofresh": "https://www.hellofresh.com/pages/refer-a-friend",
-            "thirdlove": "https://www.thirdlove.com/pages/rewards",
-            "loop-earplugs": "https://www.loopearplugs.com/pages/rewards",
-            "pampers": "https://www.pampers.com/en-us/rewards",
-            "huel": "https://huel.com/pages/huel-plus",
-            "brooklinen": "https://www.brooklinen.com/pages/rewards",
-            "meundies": "https://www.meundies.com/membership",
-            "ruggable": "https://ruggable.com/pages/rewards",
-            "the-realreal": "https://www.therealreal.com/first-look/subscription"
+            #"sephora": "https://www.sephora.com/beauty/beauty-offers",
+            "ulta-beauty": "https://www.ulta.com/promotion/coupon",
+            "sally-beauty": "https://www.sallybeauty.com/deals/",
+            "pacifica-beauty": "https://www.pacificabeauty.com/pages/deals-coupons-promo-codes",
+            "kiehls-us": "https://www.kiehls.com/offers.html"
     }
     
     for merchant_slug, url in merchants.items():
@@ -145,7 +126,10 @@ if __name__ == "__main__":
                 with Session() as session:
                     loader = DataLoader(session)
                     existing_program = loader.get_membership_program(merchant_slug)    
-            extracted_data = extract_membership_program_info(markdown_data, merchant_slug, strict_schema, existing_program)
+            if parse_deals_only:
+                extracted_data = extract_deal_info(markdown_data, merchant_slug, strict_schema, existing_program)
+            else:
+                extracted_data = extract_membership_program_info(markdown_data, merchant_slug, strict_schema, existing_program)
             logger.info(f"Results: {extracted_data}")
 
             data_dict = json.loads(extracted_data)
@@ -153,6 +137,7 @@ if __name__ == "__main__":
             # Validate and map to Pydantic objects
             validated_data = MerchantProgramDealSchema(**data_dict)
             with Session() as session:
+                logger.info(f'Upserting data for {merchant_slug}...')
                 loader = DataLoader(session)
                 loader.upsert_membership_program(validated_data, url=url)
 

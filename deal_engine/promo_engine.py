@@ -113,6 +113,11 @@ class PromoEngine(BaseEngine):
                             points_earned=None,
                             is_stackable=deal.is_stackable,
                             applied=True,
+                            promo_code=(
+                                deal.promo_code
+                                if deal.redemption_method == RedemptionType.PROMO_CODE
+                                else None
+                            ),
                         )
                     )
                 except Exception as exc:
