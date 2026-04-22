@@ -86,7 +86,7 @@ Rules:
             instruct the model to use this slug directly.
         """
         system_prompt = self._build_system_prompt(known_merchants, forced_merchant_slug)
-        client = ChatClient(system_prompt=system_prompt)
+        client = ChatClient(system_prompt=system_prompt, model='gpt-5.4-nano', verbosity='low', effort='none')
 
         domain = urlparse(product_url).netloc.lower().replace("www.", "")
 

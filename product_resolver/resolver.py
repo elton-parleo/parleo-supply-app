@@ -93,8 +93,10 @@ class ProductResolver:
 
         known_merchant_slugs = [m["slug"] for m in known_merchants]
 
+        logger.info('Starting scraping product url', extra={"product_url": product_url})
         # STEP C — Scrape the page (ValueError bubbles up to the endpoint)
         page_content = self.scraper.scrape(product_url)
+        logger.info('Finished scraping product url')
 
         # STEP D — Extract product details (ValueError bubbles up)
         if url_matched_slug is not None:

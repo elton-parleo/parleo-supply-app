@@ -3,10 +3,10 @@ import logging
 import uvicorn
 from api.api import app
 
-"""logging.basicConfig(
-    level=logging.info,
+logging.basicConfig(
+    level=logging.INFO,
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
-)"""
+)
 
 if __name__ == "__main__":
     # log_config=None prevents uvicorn from overriding our logging setup

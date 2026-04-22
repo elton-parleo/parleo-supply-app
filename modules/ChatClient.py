@@ -9,10 +9,14 @@ class ChatClient:
         self,
         model: str = "gpt-5.1",
         system_prompt: str = "You are a helpful, precise assistant.",
+        verbosity: str = "medium",
+        effort: str = "medium",
     ):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
         self.system_prompt = system_prompt
+        self.verbosity = verbosity
+        self.effort = effort
 
     def _build_messages(
         self,
@@ -44,7 +48,7 @@ class ChatClient:
         messages = self._build_messages(user_prompt, examples)
         
         # 1. Define the base text configuration
-        text_config = {"format": {"type": "text"}, "verbosity": "medium"}
+        text_config = {"format": {"type": "text"}, "verbosity": self.verbosity}
 
         # 2. Inject schema correctly according to Responses API requirements
         if schema:
@@ -59,7 +63,7 @@ class ChatClient:
             "model": self.model,
             "input": messages,
             "text": text_config,  # Nested here
-            "reasoning": {"effort": "medium"}
+            "reasoning": {"effort": self.effort}
         }
 
         response = self.client.responses.create(**params)
